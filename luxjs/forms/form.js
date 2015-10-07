@@ -318,7 +318,6 @@
 
                     this.addAttrs(scope, input, attributes || inputAttributes);
                     if (field.value !== undefined) {
-                        scope[scope.formModelName][field.name] = field.value;
                         if (info.textBased)
                             input.attr('value', field.value);
                     }
@@ -349,6 +348,8 @@
                         options = [],
                         group;
 
+                    scope[scope.formModelName][field.name] = '';
+
                     forEach(field.options, function (opt) {
                         if (typeof(opt) === 'string') {
                             opt = {'value': opt};
@@ -368,6 +369,13 @@
                         // Set the default value if not available
                         if (!field.value) field.value = opt.value;
                     });
+
+                    // Set default `Please select` message as a first option
+                    if (field.hasOwnProperty('options')) {
+                        if (options[0].value !== '' || options.length === 0) {
+                            options.splice(0, 0, {'value': '', 'repr': 'Please select...'});
+                        }
+                    }
 
                     var info = scope.info,
                         element = this.input(scope);
@@ -462,9 +470,9 @@
                             repeatItems = 'opt.value as opt in ' + optsId + ' | filter: $select.search';
 
                         if (field.multiple)
-                            match.html('{{$item.value}}');
+                            match.html('{{$item.value || "Please select..."}}');
                         else
-                            match.html('{{$select.selected.value}}');
+                            match.html('{{$select.selected.repr || $select.selected.value || $select.selected}}');
 
                         if (groupList.length) {
                             // Groups require raw options
