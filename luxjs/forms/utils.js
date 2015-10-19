@@ -8,6 +8,129 @@ angular.module('lux.form.utils', ['lux.services'])
         // request delay in ms
         requestDelay: 500,
     })
+    .directive('reachInfinity', ['$parse', '$timeout', function($parse, $timeout) {
+        function height(elem) {
+            elem = elem[0] || elem;
+            if (isNaN(elem.offsetHeight)) {
+                return elem.document.documentElement.clientHeight;
+            } else {
+                return elem.offsetHeight;
+            }
+        }
+
+        function offsetTop(elem) {
+            if (!elem[0].getBoundingClientRect || elem.css('none')) {
+                return;
+            }
+            return elem[0].getBoundingClientRect().top + pageYOffset(elem);
+        }
+
+        function pageYOffset(elem) {
+            elem = elem[0] || elem;
+            if (isNaN(window.pageYOffset)) {
+                return elem.document.documentElement.scrollTop;
+            } else {
+                return elem.ownerDocument.defaultView.pageYOffset;
+            }
+        }
+
+        /**
+         * Since scroll events can fire at a high rate, the event handler
+         * shouldn't execute computationally expensive operations such as DOM modifications.
+         * based on https://developer.mozilla.org/en-US/docs/Web/Events/scroll#requestAnimationFrame_.2B_customEvent
+         *
+         * @param type
+         * @param name
+         * @param (obj)
+         * @returns {Function}
+         */
+        function throttle(type, name, obj) {
+            var running = false;
+
+            obj = obj || window;
+
+            var func = function() {
+                if (running) {
+                    return;
+                }
+
+                running = true;
+                requestAnimationFrame(function() {
+                    obj.dispatchEvent(new CustomEvent(name));
+                    running = false;
+                });
+            };
+
+            obj.addEventListener(type, func);
+
+            return function() {
+                obj.removeEventListener(type, func);
+            };
+        }
+
+        return {
+            link: function(scope, elem, attrs) {
+                var container = elem,
+                    scrollDistance = 0.3,
+                    removeThrottle;
+
+                function tryToSetupInfinityScroll() {
+                    var rows = elem.querySelectorAll('.ui-select-choices-row');
+
+                    if (rows.length === 0) {
+                        return false;
+                    }
+
+                    var lastChoice = angular.element(rows[rows.length - 1]);
+
+                    container = angular.element(elem.querySelectorAll('.ui-select-choices'));
+
+                    var handler = function() {
+                        var containerBottom = height(container),
+                            containerTopOffset = 0,
+                            elementBottom;
+
+                        if (offsetTop(container) !== void 0) {
+                            containerTopOffset = offsetTop(container);
+                        }
+
+                        elementBottom = offsetTop(lastChoice) - containerTopOffset + height(lastChoice);
+
+                        var remaining = elementBottom - containerBottom,
+                            shouldScroll = remaining <= height(container) * scrollDistance + 1;
+
+                        if (shouldScroll) {
+                            scope.$apply(function() {
+                                $parse(attrs.reachInfinity)(scope);
+                            });
+                        }
+                    };
+
+                    removeThrottle = throttle('scroll', 'optimizedScroll', container[0]);
+                    container.on('optimizedScroll', handler);
+
+                    scope.$on('$destroy', function() {
+                        removeThrottle();
+                        container.off('optimizedScroll', handler);
+                    });
+
+                    return true;
+                }
+
+                var unbindWatcher = scope.$watch('$select.open', function(newItems) {
+                    if (!newItems) {
+                        return;
+                    }
+
+                    $timeout(function() {
+                        if (tryToSetupInfinityScroll()) {
+                            unbindWatcher();
+                        }
+                    });
+                });
+            }
+        };
+    }])
     //
     .directive('remoteOptions', ['$lux', 'remoteOptionsDefaults', function ($lux, remoteOptionsDefaults) {
 
@@ -24,11 +147,11 @@ angular.module('lux.form.utils', ['lux.services'])
                 if (attrs.multiple) {
                     options.splice(0, 1);
                 } else {
-                    options[0].name = 'Please select...';
+                    if (type === 'search' && data.data.result.length === 0)
+                        options[0].name = 'Cannot find value';
+                    else
+                        options[0].name = 'Please select...';
                 }
-
-                if (type === 'search' && data.data.result.length === 0)
-                    options[0].name = 'Cannot find value';
 
                 angular.forEach(data.data.result, function (val) {
                     var name;
@@ -68,7 +191,6 @@ angular.module('lux.form.utils', ['lux.services'])
 
             getData(api, target, scope, attrs, config, 'initial');
 
-
             // Custom filter function
             scope.remoteSearch = function($select) {
                 if ($select.search !== '') {
@@ -83,6 +205,10 @@ angular.module('lux.form.utils', ['lux.services'])
             scope.resetOptions = function() {
                 delete config.params[config.id];
                 getData(api, target, scope, attrs, config, 'initial');
+            };
+
+            scope.loadMore = function() {
+                console.log('ok');
             };
         }
 
@@ -102,7 +228,7 @@ angular.module('lux.form.utils', ['lux.services'])
             link: link
         };
     }])
-
+    //
     .directive('selectOnClick', function () {
         return {
             restrict: 'A',

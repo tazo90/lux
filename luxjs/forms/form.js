@@ -435,7 +435,10 @@
                                     .attr('theme', elements.select.widget.theme)
                                     .attr('search-enabled', 'enableSearch')
                                     .attr('ng-change', 'fireFieldChange("' + field.name + '")')
-                                    .attr('on-select', 'resetOptions()'),
+                                    // On select handler
+                                    .attr('on-select', 'resetOptions()')
+                                    // Add infinity scroll handler
+                                    .attr('reach-infinity', 'loadMore()'),
                         match = $($document[0].createElement('ui-select-match'))
                                     .attr('placeholder', 'Select or search ' + field.label.toLowerCase()),
                         choices_inner = $($document[0].createElement('div')),
