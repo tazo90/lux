@@ -3,54 +3,87 @@
  */
 
 angular.module('lux.form.utils', ['lux.services'])
+    //
+    .constant('remoteOptionsDefaults', {
+        // request delay in ms
+        requestDelay: 500,
+    })
+    //
+    .directive('remoteOptions', ['$lux', 'remoteOptionsDefaults', function ($lux, remoteOptionsDefaults) {
 
-    .directive('remoteOptions', ['$lux', function ($lux) {
-
-        function fill(api, target, scope, attrs) {
-
-            var id = attrs.remoteOptionsId || 'id',
-                nameOpts = attrs.remoteOptionsValue ? JSON.parse(attrs.remoteOptionsValue) : {
-                    type: 'field',
-                    source: 'id'
-                },
-                nameFromFormat = nameOpts.type === 'formatString',
-                initialValue = {},
-                params = JSON.parse(attrs.remoteOptionsParams || '{}'),
-                options = [];
-
+        function getData(api, target, scope, attrs, config, type) {
+            var options = [];
             scope[target.name] = options;
 
-            initialValue.id = '';
-            initialValue.name = 'Loading...';
+            config.initialValue.id = '';
+            config.initialValue.name = 'Loading...';
 
-            options.push(initialValue);
+            options.push(config.initialValue);
 
-            // Set empty value if field was not filled
-            if (scope[scope.formModelName][attrs.name] === undefined)
-                scope[scope.formModelName][attrs.name] = '';
-
-            api.get(null, params).then(function (data) {
+            api.get(null, config.params).then(function(data) {
                 if (attrs.multiple) {
                     options.splice(0, 1);
                 } else {
                     options[0].name = 'Please select...';
                 }
+
+                if (type === 'search' && data.data.result.length === 0)
+                    options[0].name = 'Cannot find value';
+
                 angular.forEach(data.data.result, function (val) {
                     var name;
-                    if (nameFromFormat) {
-                        name = formatString(nameOpts.source, val);
+                    if (config.nameFromFormat) {
+                        name = formatString(config.nameOpts.source, val);
                     } else {
-                        name = val[nameOpts.source];
+                        name = val[config.nameOpts.source];
                     }
+
                     options.push({
-                        id: val[id],
+                        id: val[config.id],
                         name: name
                     });
                 });
-            }, function (data) {
-                /** TODO: add error alert */
+            }, function(data) {
                 options[0] = '(error loading options)';
             });
+        }
+
+
+        function fill(api, target, scope, attrs) {
+            var config = {
+                id: attrs.remoteOptionsId || 'id',
+                nameOpts: attrs.remoteOptionsValue ? JSON.parse(attrs.remoteOptionsValue) : {
+                    type: 'field',
+                    source: 'id'
+                },
+                initialValue: {},
+                params: JSON.parse(attrs.remoteOptionsParams || '{}')
+            };
+
+            config.nameFromFormat = config.nameOpts.type === 'formatString';
+
+            // Set empty value if field was not filled
+            if (scope[scope.formModelName][attrs.name] === undefined)
+                scope[scope.formModelName][attrs.name] = '';
+
+            getData(api, target, scope, attrs, config, 'initial');
+
+
+            // Custom filter function
+            scope.remoteSearch = function($select) {
+                if ($select.search !== '') {
+                    config.params[config.id] = $select.search;
+                    getData(api, target, scope, attrs, config, 'search');
+                } else {
+                    // Get initial options
+                    scope.resetOptions();
+                }
+            };
+
+            scope.resetOptions = function() {
+                delete config.params[config.id];
+                getData(api, target, scope, attrs, config, 'initial');
+            };
         }
 
         function link(scope, element, attrs) {

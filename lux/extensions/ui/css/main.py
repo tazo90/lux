@@ -32,3 +32,6 @@ def add_css(all):
 
     css(".equal, .equal > div[class*='col-']",
         Flex())
+
+    css('.ui-select-bootstrap > .ui-select-choices',
+        position='relative')
