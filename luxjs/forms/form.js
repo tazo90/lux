@@ -452,7 +452,7 @@
                         };
 
                         // Add infinity scroll handler
-                        selectUI.attr('select-reach-infinity', 'loadMore()');
+                        selectUI.attr('reach-infinity', 'loadMore()');
 
                         // Remote options
                         selectUI.attr('data-remote-options', field['data-remote-options'])

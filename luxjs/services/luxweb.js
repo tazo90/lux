@@ -100,8 +100,6 @@
                             if (isArray(value)) {
                                 model[key] = [];
 
-                                console.log(key, value);
-
                                 forEach(value, function(item) {
                                     model[key].push(item.id);
                                 });
