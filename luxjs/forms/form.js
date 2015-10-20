@@ -22,6 +22,7 @@
         .constant('formDefaults', {
             // Default layout
             layout: 'default',
+            //
             // for horizontal layout
             labelSpan: 2,
             showLabels: true,
@@ -434,11 +435,7 @@
                                     .attr('ng-model', scope.formModelName + '["' + field.name + '"]')
                                     .attr('theme', elements.select.widget.theme)
                                     .attr('search-enabled', 'enableSearch')
-                                    .attr('ng-change', 'fireFieldChange("' + field.name + '")')
-                                    // On select handler
-                                    .attr('on-select', 'resetOptions()')
-                                    // Add infinity scroll handler
-                                    .attr('reach-infinity', 'loadMore()'),
+                                    .attr('ng-change', 'fireFieldChange("' + field.name + '")'),
                         match = $($document[0].createElement('ui-select-match'))
                                     .attr('placeholder', 'Select or search ' + field.label.toLowerCase()),
                         choices_inner = $($document[0].createElement('div')),
@@ -450,19 +447,31 @@
                         selectUI.attr('multiple', true);
 
                     if (field.hasOwnProperty('data-remote-options')) {
+                        var ngModelOptions = {
+                            debounce: formDefaults.delay
+                        };
+
+                        // Add infinity scroll handler
+                        selectUI.attr('select-reach-infinity', 'loadMore()');
+
                         // Remote options
                         selectUI.attr('data-remote-options', field['data-remote-options'])
                                 .attr('data-remote-options-id', field['data-remote-options-id'])
                                 .attr('data-remote-options-value', field['data-remote-options-value']);
 
-                        if (field.multiple)
+                        if (field.multiple) {
                             match.html('{{$item.repr || $item.name || $item.id}}');
-                        else
+                            selectUI.attr('on-select', 'multipleSelect($select, $model)');
+                        } else {
+                            // Add select handler only for non multiple field
+                            // because multiple fields use separate url for initial options
+                            selectUI.attr('on-select', 'resetOptions()');
+                            //
                             match.html('{{$select.selected.name || $select.selected.id}}');
+                        }
 
-                        //choices.attr('repeat', field['data-ng-options-ui-select'] + ' | filter: $select.search')
                         choices.attr('repeat', field['data-ng-options-ui-select'])
-                               .attr('refresh', 'remoteSearch($select)')
+                               .attr('refresh', 'remoteSearch($select,' + field.multiple + ')')
                                .attr('refresh-delay', 0);
                         choices_inner.html('{{item.name || item.id}}');
                     } else {

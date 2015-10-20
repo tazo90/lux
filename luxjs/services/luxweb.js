@@ -87,10 +87,20 @@
                         forEach(data, function (value, key) {
                             // TODO: do we need a callback for JSON fields?
                             // or shall we leave it here?
-                            if (isObject(value)) value = JSON.stringify(value, null, 4);
+                            if (isObject(value)) {
+                                value = angular.fromJson(value);
+
+                                // Handles one-to-many field which is serve via json
+                                if (value.hasOwnProperty('id'))
+                                    value = value.id;
+                                else
+                                    value = JSON.stringify(value, null, 4);
+                            }
 
                             if (isArray(value)) {
                                 model[key] = [];
+
+                                console.log(key, value);
 
                                 forEach(value, function(item) {
                                     model[key].push(item.id);

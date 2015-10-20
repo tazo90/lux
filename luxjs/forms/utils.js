@@ -4,137 +4,9 @@
 
 angular.module('lux.form.utils', ['lux.services'])
     //
-    .constant('remoteOptionsDefaults', {
-        // request delay in ms
-        requestDelay: 500,
-    })
-    .directive('reachInfinity', ['$parse', '$timeout', function($parse, $timeout) {
-        function height(elem) {
-            elem = elem[0] || elem;
-            if (isNaN(elem.offsetHeight)) {
-                return elem.document.documentElement.clientHeight;
-            } else {
-                return elem.offsetHeight;
-            }
-        }
+    .directive('remoteOptions', ['$lux', function ($lux) {
 
-        function offsetTop(elem) {
-            if (!elem[0].getBoundingClientRect || elem.css('none')) {
-                return;
-            }
-            return elem[0].getBoundingClientRect().top + pageYOffset(elem);
-        }
-
-        function pageYOffset(elem) {
-            elem = elem[0] || elem;
-            if (isNaN(window.pageYOffset)) {
-                return elem.document.documentElement.scrollTop;
-            } else {
-                return elem.ownerDocument.defaultView.pageYOffset;
-            }
-        }
-
-        /**
-         * Since scroll events can fire at a high rate, the event handler
-         * shouldn't execute computationally expensive operations such as DOM modifications.
-         * based on https://developer.mozilla.org/en-US/docs/Web/Events/scroll#requestAnimationFrame_.2B_customEvent
-         *
-         * @param type
-         * @param name
-         * @param (obj)
-         * @returns {Function}
-         */
-        function throttle(type, name, obj) {
-            var running = false;
-
-            obj = obj || window;
-
-            var func = function() {
-                if (running) {
-                    return;
-                }
-
-                running = true;
-                requestAnimationFrame(function() {
-                    obj.dispatchEvent(new CustomEvent(name));
-                    running = false;
-                });
-            };
-
-            obj.addEventListener(type, func);
-
-            return function() {
-                obj.removeEventListener(type, func);
-            };
-        }
-
-        return {
-            link: function(scope, elem, attrs) {
-                var container = elem,
-                    scrollDistance = 0.3,
-                    removeThrottle;
-
-                function tryToSetupInfinityScroll() {
-                    var rows = elem.querySelectorAll('.ui-select-choices-row');
-
-                    if (rows.length === 0) {
-                        return false;
-                    }
-
-                    var lastChoice = angular.element(rows[rows.length - 1]);
-
-                    container = angular.element(elem.querySelectorAll('.ui-select-choices'));
-
-                    var handler = function() {
-                        var containerBottom = height(container),
-                            containerTopOffset = 0,
-                            elementBottom;
-
-                        if (offsetTop(container) !== void 0) {
-                            containerTopOffset = offsetTop(container);
-                        }
-
-                        elementBottom = offsetTop(lastChoice) - containerTopOffset + height(lastChoice);
-
-                        var remaining = elementBottom - containerBottom,
-                            shouldScroll = remaining <= height(container) * scrollDistance + 1;
-
-                        if (shouldScroll) {
-                            scope.$apply(function() {
-                                $parse(attrs.reachInfinity)(scope);
-                            });
-                        }
-                    };
-
-                    removeThrottle = throttle('scroll', 'optimizedScroll', container[0]);
-                    container.on('optimizedScroll', handler);
-
-                    scope.$on('$destroy', function() {
-                        removeThrottle();
-                        container.off('optimizedScroll', handler);
-                    });
-
-                    return true;
-                }
-
-                var unbindWatcher = scope.$watch('$select.open', function(newItems) {
-                    if (!newItems) {
-                        return;
-                    }
-
-                    $timeout(function() {
-                        if (tryToSetupInfinityScroll()) {
-                            unbindWatcher();
-                        }
-                    });
-                });
-            }
-        };
-    }])
-    //
-    .directive('remoteOptions', ['$lux', 'remoteOptionsDefaults', function ($lux, remoteOptionsDefaults) {
-
-        function getData(api, target, scope, attrs, config, type) {
+        function getData(api, target, scope, attrs, config, searchValue) {
             var options = [];
             scope[target.name] = options;
 
@@ -143,15 +15,25 @@ angular.module('lux.form.utils', ['lux.services'])
 
             options.push(config.initialValue);
 
+            if (searchValue === undefined)
+                delete config.params[config.id];
+            else
+                config.params[config.id] = searchValue;
+
             api.get(null, config.params).then(function(data) {
-                if (attrs.multiple) {
+                /*if (attrs.multiple) {
                     options.splice(0, 1);
                 } else {
-                    if (type === 'search' && data.data.result.length === 0)
+                    if (searchValue !== undefined && data.data.result.length === 0)
                         options[0].name = 'Cannot find value';
                     else
                         options[0].name = 'Please select...';
-                }
+                }*/
+
+                if (searchValue !== undefined && data.data.result.length === 0)
+                    options[0].name = 'Cannot find value';
+                else
+                    options[0].name = 'Please select...';
 
                 angular.forEach(data.data.result, function (val) {
                     var name;
@@ -161,8 +43,15 @@ angular.module('lux.form.utils', ['lux.services'])
                         name = val[config.nameOpts.source];
                     }
 
+                    var optionId;
+                    if (attrs.multiple)
+                        // For multiple field get always id of the object
+                        optionId = val.id;
+                    else
+                        optionId = val[config.id];
+
                     options.push({
-                        id: val[config.id],
+                        id: optionId,
                         name: name
                     });
                 });
@@ -171,8 +60,8 @@ angular.module('lux.form.utils', ['lux.services'])
             });
         }
 
-
         function fill(api, target, scope, attrs) {
+
             var config = {
                 id: attrs.remoteOptionsId || 'id',
                 nameOpts: attrs.remoteOptionsValue ? JSON.parse(attrs.remoteOptionsValue) : {
@@ -189,26 +78,37 @@ angular.module('lux.form.utils', ['lux.services'])
             if (scope[scope.formModelName][attrs.name] === undefined)
                 scope[scope.formModelName][attrs.name] = '';
 
-            getData(api, target, scope, attrs, config, 'initial');
+            getData(api, target, scope, attrs, config, null);
 
-            // Custom filter function
-            scope.remoteSearch = function($select) {
+             // Custom filter function
+            scope.remoteSearch = function($select, fieldMultiple) {
                 if ($select.search !== '') {
-                    config.params[config.id] = $select.search;
-                    getData(api, target, scope, attrs, config, 'search');
+                    var searchValue = $select.search;
+
+                    // For multiple fields use name as a lookup key
+                    if (fieldMultiple === true)
+                        config.id = 'name';
+
+                    getData(api, target, scope, attrs, config, searchValue);
                 } else {
                     // Get initial options
                     scope.resetOptions();
                 }
             };
 
+            // Get initial data
             scope.resetOptions = function() {
-                delete config.params[config.id];
-                getData(api, target, scope, attrs, config, 'initial');
+                getData(api, target, scope, attrs, config, null);
             };
 
-            scope.loadMore = function() {
-                console.log('ok');
+            // Handles selection on multiple select
+            scope.multipleSelect = function($select, value) {
+                var selected = scope[scope.formModelName][attrs.name];
+                // If selected 'Please select...' then remove it
+                if (value === '') {
+                    selected.pop();
+                    $select.selected.pop();
+                }
             };
         }
 
@@ -228,7 +128,7 @@ angular.module('lux.form.utils', ['lux.services'])
             link: link
         };
     }])
-    //
+
     .directive('selectOnClick', function () {
         return {
             restrict: 'A',
