@@ -422,6 +422,14 @@
                         return item.group;
                     };
 
+                    scope.getValue = function(value) {
+                        if (isObject(value)) {
+                            return value.repr || value.name || value.id;
+                        } else {
+                            return value;
+                        }
+                    };
+
                     // Search specified global
                     scope.enableSearch = elements.select.widget.enableSearch;
 
@@ -447,27 +455,23 @@
                         selectUI.attr('multiple', true);
 
                     if (field.hasOwnProperty('data-remote-options')) {
-                        var ngModelOptions = {
-                            debounce: formDefaults.delay
-                        };
-
                         // Add infinity scroll handler
-                        selectUI.attr('reach-infinity', 'loadMore()');
+                        selectUI.attr('select-infinity', 'loadMore()');
 
                         // Remote options
                         selectUI.attr('data-remote-options', field['data-remote-options'])
                                 .attr('data-remote-options-id', field['data-remote-options-id'])
-                                .attr('data-remote-options-value', field['data-remote-options-value']);
+                                .attr('data-remote-options-value', field['data-remote-options-value'])
+                                .attr('data-remote-options-params', field['data-remote-options-params']);
 
                         if (field.multiple) {
-                            match.html('{{$item.repr || $item.name || $item.id}}');
                             selectUI.attr('on-select', 'multipleSelect($select, $model)');
+                            match.html('{{getValue($item)}}');
                         } else {
                             // Add select handler only for non multiple field
                             // because multiple fields use separate url for initial options
                             selectUI.attr('on-select', 'resetOptions()');
-                            //
-                            match.html('{{$select.selected.name || $select.selected.id}}');
+                            match.html('{{getValue($select.selected)}}');
                         }
 
                         choices.attr('repeat', field['data-ng-options-ui-select'])

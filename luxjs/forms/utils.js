@@ -4,7 +4,98 @@
 
 angular.module('lux.form.utils', ['lux.services'])
     //
-    .directive('reachInfinity', ['$parse', '$timeout', function($parse, $timeout) {
+    .factory('remoteService', ['$lux', '$q', '$timeout', function($lux, $q, $timeout) {
+        return {
+            /**
+             * Called to get remote options from the API
+             *
+             * @param api
+             * @param target
+             * @param scope
+             * @param attrs
+             * @param config {object} - parameters passed to query string in request
+             * @param searchValue {string} - value of the search was were typed in input field
+             * @param extendCurrentOptions {boolean} - flag that indicates whether to add new options to existing options
+             * @returns {promise}
+             */
+            query: function(api, target, scope, attrs, config, searchValue, extendCurrentOptions) {
+                var defer = $lux.q.defer();
+
+                if (extendCurrentOptions) {
+                    // Extend current options
+                    options = scope[target.name];
+
+                    if (options.length > config.optionsTotal) {
+                        defer.reject();
+                        return defer.promise;
+                    } else {
+                        // Increase offset
+                        config.params.offset += config.params.limit;
+                    }
+                } else {
+                    // Add initial options
+                    var options = [];
+                    scope[target.name] = options;
+
+                    config.initialValue.id = '';
+                    config.initialValue.name = 'Loading...';
+
+                    options.push(config.initialValue);
+                }
+
+                if (searchValue === undefined)
+                    delete config.params[config.id];
+                else
+                    config.params[config.id] = searchValue;
+
+                api.get(null, config.params).then(function(data) {
+                    // Get amount of total items
+                    config.optionsTotal = data.data.total;
+
+                    if (searchValue !== undefined && data.data.result.length === 0) {
+                        options[0].name = 'Cannot find value';
+                    } else {
+                        options[0].name = 'Please select...';
+                    }
+
+                    angular.forEach(data.data.result, function (val) {
+                        var name;
+                        if (config.nameFromFormat) {
+                            name = formatString(config.nameOpts.source, val);
+                        } else {
+                            name = val[config.nameOpts.source];
+                        }
+
+                        var optionId;
+                        if (attrs.multiple) {
+                            // For multiple field always get id of the object
+                            optionId = val.id;
+                        } else {
+                            optionId = val[config.id];
+                        }
+
+                        options.push({
+                            id: optionId,
+                            name: name
+                        });
+                    });
+
+                }, function(data) {
+                    options[0] = '(error loading options)';
+                    defer.reject();
+                });
+                return defer.promise;
+            },
+            //
+            setupQueryInitial: function(config) {
+                config.params.limit = config.queryInitial.limit;
+                config.params.offset = config.queryInitial.offset;
+                delete config.params[config.id];
+            }
+        };
+    }])
+    //
+    .directive('selectInfinity', ['$parse', '$timeout', function($parse, $timeout) {
         function height(elem) {
             elem = elem[0] || elem;
             if (isNaN(elem.offsetHeight)) {
@@ -97,7 +188,7 @@ angular.module('lux.form.utils', ['lux.services'])
 
                         if (shouldScroll) {
                             scope.$apply(function() {
-                                $parse(attrs.reachInfinity)(scope);
+                                $parse(attrs.selectInfinity)(scope);
                             });
                         }
                     };
@@ -128,86 +219,7 @@ angular.module('lux.form.utils', ['lux.services'])
         };
     }])
     //
-    .factory('remoteService', ['$lux', '$q', function($lux, $q) {
-        return {
-            query: function(api, target, scope, attrs, config, searchValue, extendCurrentOptions) {
-
-                var defer = $lux.q.defer();
-
-                if (extendCurrentOptions) {
-                    // Add more items to current options
-                    options = scope[target.name];
-
-                    if (options.length > config.optionsTotal) {
-                        defer.reject();
-                        return defer.promise;
-                    } else {
-                        // Increase offset
-                        config.params.offset += config.params.limit;
-                    }
-                } else {
-                    var options = [];
-                    scope[target.name] = options;
-
-                    config.initialValue.id = '';
-                    config.initialValue.name = 'Loading...';
-
-                    options.push(config.initialValue);
-                }
-
-                if (searchValue === undefined)
-                    delete config.params[config.id];
-                else
-                    config.params[config.id] = searchValue;
-
-                api.get(null, config.params).then(function(data) {
-                    // Get amount of total items
-                    config.optionsTotal = data.data.total;
-
-                    //if (searchValue !== undefined && data.data.result.length === 0)
-                        //options[0].name = 'Cannot find value';
-                    //else
-                        options[0].name = 'Please select...';
-
-                    angular.forEach(data.data.result, function (val) {
-                        var name;
-                        if (config.nameFromFormat) {
-                            name = formatString(config.nameOpts.source, val);
-                        } else {
-                            name = val[config.nameOpts.source];
-                        }
-
-                        var optionId;
-                        if (attrs.multiple)
-                            // For multiple field always get id of the object
-                            optionId = val.id;
-                        else
-                            optionId = val[config.id];
-
-                        options.push({
-                            id: optionId,
-                            name: name
-                        });
-                    });
-
-                    defer.resolve(options);
-
-                }, function(data) {
-                    options[0] = '(error loading options)';
-                    defer.reject();
-                });
-                return defer.promise;
-            },
-            //
-            setupQueryInitial: function(config) {
-                config.params.limit = config.queryInitial.limit;
-                config.params.offset = config.queryInitial.offset;
-                delete config.params[config.id];
-            }
-        };
-    }])
-    //
-    .directive('remoteOptions', ['$lux', '$q', 'remoteService', function ($lux, $q, remoteService) {
+    .directive('remoteOptions', ['$lux', '$timeout', 'remoteService', function ($lux, $timeout, remoteService) {
 
         function fill(api, target, scope, attrs) {
 
@@ -226,9 +238,9 @@ angular.module('lux.form.utils', ['lux.services'])
                 }
             };
 
-            remoteService.setupQueryInitial(config);
-
             config.nameFromFormat = config.nameOpts.type === 'formatString';
+
+            remoteService.setupQueryInitial(config);
 
             // Set empty value if field was not filled
             if (scope[scope.formModelName][attrs.name] === undefined)
@@ -240,7 +252,6 @@ angular.module('lux.form.utils', ['lux.services'])
             scope.remoteSearch = function($select, fieldMultiple) {
                 if ($select.search !== '') {
                     var searchValue = $select.search;
-
                     remoteService.setupQueryInitial(config);
 
                     // For multiple fields use name as a lookup key
@@ -272,7 +283,9 @@ angular.module('lux.form.utils', ['lux.services'])
 
             // Handler for infinity scroll
             scope.loadMore = function() {
-                remoteService.query(api, target, scope, attrs, config, null, true);
+                $timeout(function() {
+                    remoteService.query(api, target, scope, attrs, config, null, true);
+                });
             };
         }
 
@@ -292,7 +305,7 @@ angular.module('lux.form.utils', ['lux.services'])
             link: link
         };
     }])
-
+    //
     .directive('selectOnClick', function () {
         return {
             restrict: 'A',
