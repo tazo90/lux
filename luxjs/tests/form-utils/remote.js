@@ -1,93 +1,139 @@
-    describe('Remote options', function () {
-        // Define the tree test module
-        angular.module('bmll.remote.test', ['bmll.remote']);
-
-        var $controller,
-            $compile,
-            $rootScope,
-            $httpBackend,
-            utils = {
-              /**
-               * Call click event on element (for PhantomJS)
-               * http://stackoverflow.com/questions/15739263/phantomjs-click-an-element
-               * @param element
-               */
-              click: function (element){
-                var ev = document.createEvent("MouseEvent");
-                ev.initMouseEvent(
-                  "click",
-                  true, /* bubble */
-                  true, /* cancelable */
-                  window, null,
-                  0, 0, 0, 0, /* coordinates */
-                  false, false, false, false, /* modifier keys */
-                  0 /*left*/,
-                  null
-                );
-                element.dispatchEvent(ev);
-              },
-              /**
-               * Force end of all transitions for unit tests
-               * https://github.com/mbostock/d3/issues/1789
-               */
-              flushAllD3Transitions: function () {
-                  var now = Date.now;
-                  Date.now = function() { return Infinity; };
-                  d3.timer.flush();
-                  Date.now = now;
-                }
-            },
-            api_mock_data = {
-                '/': {
-                    "groups_url": "http://127.0.0.1:6050/groups",
-                    "users_url": "http://127.0.0.1:6050/users",
-                    "securities_url": "http://127.0.0.1:6050/securities",
-                    "user_url": "http://127.0.0.1:6050/user",
-                    "orderbook_url": "http://127.0.0.1:6050/orderbook",
-                    "authorizations_url": "http://127.0.0.1:6050/authorizations",
-                    "permissions_url": "http://127.0.0.1:6050/permissions",
-                    "security_classes_url": "http://127.0.0.1:6050/security_classes",
-                    "exchanges_url": "http://127.0.0.1:6050/exchanges"
+ // Utility for creating a JSON form for testing
+    var testFormUtils = {
+        createForm: function () {
+            var form = {
+                field: {
+                    type: 'form'
                 },
-                '/exchanges_url': {
-                    'result': [{
-                        'id': '1',
-                        'name': 'item 1'
-                    },{
-                        'id': '2',
-                        'name': 'item 2'
-                    }]
-                }
+                children: []
             };
+            lux.forEach(arguments, function (attrs) {
+                form['children'].push({field: attrs});
+            });
+            return form;
+        },
+        digest: function ($compile, $rootScope, template) {
+            var scope = $rootScope.$new(),
+                element = $compile(template)(scope);
+            scope.$digest();
+            return element;
+        }
+    };
 
-        beforeEach(module('bmll.remote.test'));
+    describe("Test lux.form.utils", function() {
 
-        // Store references to $rootScope and $compile
-        // so they are available to all tests in this describe block
-        beforeEach(inject(function (_$controller_, _$compile_, _$rootScope_, _$httpBackend_) {
-            // The injector unwraps the underscores (_) from around the parameter names when matching
-            $controller = _$controller_;
-            $compile = _$compile_;
-            $rootScope = _$rootScope_;
-            $httpBackend = _$httpBackend_;
-        }));
+        // Angular module for select-UI forms
+        angular.module('lux.form.utils.test.selectui', ['lux.form'])
 
-        afterEach(function () {
-            $httpBackend.verifyNoOutstandingExpectation();
-            $httpBackend.verifyNoOutstandingRequest();
+            .factory('formElements', ['defaultFormElements', function (defaultFormElements) {
+                return function () {
+                    var elements = defaultFormElements();
+                    elements.select.widget = {
+                        name: 'selectUI',
+                        enableSearch: true,
+                        theme: 'bootstrap'
+                    };
+                    return elements;
+                };
+            }]);
+
+        //
+        lux.formSelectUITests = {};
+
+        var controller;
+        var api;
+        var $scope;
+        var $compile;
+        var $rootScope;
+        var $httpBackend;
+        var $document;
+        var element;
+        var $lux = angular.injector(['lux.tests.mocks']).get('$lux');
+        var windowFake = {
+            lux: {
+                context: {
+                    API_URL: 'dummy',
+                }
+            }
+        };
+
+        var apiMock;
+        var qMock;
+        var dataProvider;
+        var target = { url: 'dummy://url'};
+        var subPath = 'dummy/subPath';
+        var options = { dummy: 'options' };
+
+        beforeEach(function () {
+            module('lux.form.utils.test.selectui');
+
+            $document = angular.element(document);
+
+            angular.mock.module('lux.form.utils', function($provide) {
+                $provide.value('$lux', $lux);
+                $provide.value('$window', windowFake);
+                $provide.value('$document', $document);
+            });
+
+            api = $lux.api();
+            $lux.resetAllSpies();
+
+            inject(function (_$compile_, _$rootScope_, _$httpBackend_) {
+                $compile = _$compile_;
+                $rootScope = _$rootScope_;
+                $httpBackend = _$httpBackend_;
+
+                $rootScope.formModelName = 'UserForm';
+                $rootScope.UserForm = {
+                    users_url: [{}]
+                };
+            });
         });
 
-        if('has two options', function () {
-            $rootScope.treeOptions = treeOptions;
-            for (url in api_mock_data) {
-                $httpBackend.when('GET', lux.context.API_URL + url).respond(api_mock_data[url]);
-            }
-            var element = angular.element('<div data-bmll-remoteoptions data-bmll-remoteoptions-name="exchanges_url"></div>');
-            element = $compile(element)($rootScope);
-            $rootScope.$digest();
-            $httpBackend.flush();
+        it("call directive", function() {
+            lux.formSelectUITests.select = testFormUtils.createForm({
+                type: 'select',
+                name: 'choice',
+            });
+            var element = testFormUtils.digest($compile, $rootScope,
+                "<div><lux-form data-options='lux.formSelectUITests.select'" +
+                                "data-remote-options='{\"url\": \"dummy://url\", \"name\": \"users_url\"}'>" +
+                        "</lux-form></div>");
 
-            expect(element.scope().exchanges_url.length).toBe(2);
+            expect(api.get).toHaveBeenCalledWith(null, {limit:25, offset:0, id:null});
+        });
+
+        it("check params", function() {
+            lux.formSelectUITests.select = testFormUtils.createForm({
+                type: 'select',
+                name: 'choice',
+            });
+
+
+            var element = testFormUtils.digest($compile, $rootScope,
+                "<div><lux-form data-options='lux.formSelectUITests.select'" +
+                                "data-remote-options='{\"url\": \"dummy://url\", \"name\": \"users_url\"}'" +
+                                "data-remote-options-id='username'>" +
+                        "</lux-form></div>");
+
+            //expect(api.get).toHaveBeenCalledWith(null, {limit:25, offset:0, username:null});
+
+            var thenSpy = $lux.getLastThenSpy();
+            expect(thenSpy).toHaveBeenCalledWith(jasmine.any(Function), jasmine.any(Function));
+            var successCallback = thenSpy.calls.mostRecent().args[0];
+            successCallback({
+                data: {
+                    result: [
+                        {
+                            name: 'My Dataset',
+                            symbol: 'mse'
+                        }
+                    ]
+                }
+            });
+
+            //expect(controller.list).toEqual({ 'mse': 'My Dataset' });
+            expect(api.get).toHaveBeenCalledWith(null, {limit:25, offset:0, username:null});
 
         });
     });

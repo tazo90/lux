@@ -19,7 +19,7 @@ angular.module('lux.form.utils', ['lux.services'])
              * @returns {promise}
              */
             query: function(api, target, scope, attrs, config, searchValue, extendCurrentOptions) {
-                var defer = $lux.q.defer();
+                var defer = $q.defer();
 
                 if (extendCurrentOptions) {
                     // Extend current options
