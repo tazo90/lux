@@ -98,7 +98,10 @@ class Extension(AuthBackend):
                   'Authentication token for the api. This is used by '
                   'a lux application accessing a lux api'),
         Parameter('PAGINATION', 'lux.extensions.rest.Pagination',
-                  'Pagination class')]
+                  'Pagination class'),
+        Parameter('POST_LOGIN_URL', '',
+                  'URL users are redirected to after logging in',
+                  jscontext=True)]
 
     def on_config(self, app):
         self.backends = []
@@ -221,6 +224,10 @@ class Extension(AuthBackend):
     def set_password(self, request, user, password):
         '''Set a new password for user'''
         return self._apply_all('set_password', request, user, password)
+
+    def password_recovery(self, request, email):
+        '''Password recovery method'''
+        return self._apply_all('password_recovery', request, email)
 
     def has_permission(self, request, target, level):
         has = self._apply_all('has_permission', request, target, level)
