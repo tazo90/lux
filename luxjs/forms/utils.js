@@ -43,7 +43,7 @@ angular.module('lux.form.utils', ['lux.services'])
                     options.push(config.initialValue);
                 }
 
-                if (searchValue === undefined)
+                if (searchValue === null)
                     delete config.params[config.id];
                 else
                     config.params[config.id] = searchValue;
@@ -52,8 +52,8 @@ angular.module('lux.form.utils', ['lux.services'])
                     // Get amount of total items
                     config.optionsTotal = data.data.total;
 
-                    if (searchValue !== undefined && data.data.result.length === 0) {
-                        options[0].name = 'Cannot find value';
+                    if (searchValue !== null && data.data.result.length === 0) {
+                        options[0].name = 'No matches found';
                     } else {
                         options[0].name = 'Please select...';
                     }
@@ -85,12 +85,6 @@ angular.module('lux.form.utils', ['lux.services'])
                     defer.reject();
                 });
                 return defer.promise;
-            },
-            //
-            setupQueryInitial: function(config) {
-                config.params.limit = config.queryInitial.limit;
-                config.params.offset = config.queryInitial.offset;
-                delete config.params[config.id];
             }
         };
     }])
@@ -221,6 +215,16 @@ angular.module('lux.form.utils', ['lux.services'])
     //
     .directive('remoteOptions', ['$lux', '$timeout', 'remoteService', function ($lux, $timeout, remoteService) {
 
+        /*
+         * Set up initial values used in query strings
+         * @param config {object} query strings and settings
+         */
+        function setupInitialQuery(config) {
+            config.params.limit = config.queryInitial.limit;
+            config.params.offset = config.queryInitial.offset;
+            delete config.params[config.id];
+        }
+
         function fill(api, target, scope, attrs) {
 
             var config = {
@@ -240,7 +244,7 @@ angular.module('lux.form.utils', ['lux.services'])
 
             config.nameFromFormat = config.nameOpts.type === 'formatString';
 
-            remoteService.setupQueryInitial(config);
+            setupInitialQuery(config);
 
             // Set empty value if field was not filled
             if (scope[scope.formModelName][attrs.name] === undefined)
@@ -252,7 +256,7 @@ angular.module('lux.form.utils', ['lux.services'])
             scope.remoteSearch = function($select, fieldMultiple) {
                 if ($select.search !== '') {
                     var searchValue = $select.search;
-                    remoteService.setupQueryInitial(config);
+                    setupInitialQuery(config);
 
                     // For multiple fields use name as a lookup key
                     if (fieldMultiple === true)
@@ -267,7 +271,7 @@ angular.module('lux.form.utils', ['lux.services'])
 
             // Get initial data
             scope.resetOptions = function() {
-                remoteService.setupQueryInitial(config);
+                setupInitialQuery(config);
                 remoteService.query(api, target, scope, attrs, config, null, false);
             };
 
