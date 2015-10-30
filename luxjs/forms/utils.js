@@ -52,13 +52,13 @@ angular.module('lux.form.utils', ['lux.services'])
                         options[0].repr = 'Please select...';
                     }
 
-                    remoteService.parseOptions(data.data.result, options, attrs, config, extendCurrentOptions);
+                    remoteService.getOptions(data.data.result, options, attrs, config, extendCurrentOptions);
 
                     // If initially value comes from not the first pagination page,
                     // then we need to get element from API because of the field repr.
                     require(['lodash'], function(_) {
                         var selectedValue = scope[scope.formModelName][attrs.name];
-                        if (selectedValue.length > 0 && searchValue === null) {
+                        if (!attrs.multiple && searchValue === null) {
                             var isElementFromFirstPage = _.findIndex(options, function(item) {
                                 return item.id === selectedValue;
                             });
@@ -69,7 +69,8 @@ angular.module('lux.form.utils', ['lux.services'])
 
                                 config.params[config.id] = selectedValue;
                                 api.get(null, config.params).then(function(data) {
-                                    remoteService.parseOptions(data.data.result, options, attrs, config, extendCurrentOptions);
+                                    var option = remoteService.parseOption(data.data.result[0], attrs, config);
+                                    options.splice(options.length-3, 0, option);
                                 });
                             }
                         }
@@ -83,36 +84,33 @@ angular.module('lux.form.utils', ['lux.services'])
                 });
                 return defer.promise;
             },
-            parseOptions: function(raw_options, options, attrs, config, extendCurrentOptions) {
+            parseOption: function(option, attrs, config) {
+                var parsedOption = {
+                    id: option[config.id],
+                    repr: option[config.nameOpts.source]
+                };
+
+                if (config.nameFromFormat) {
+                    parsedOption.repr = formatString(config.nameOpts.source, option);
+                }
+
+                if (attrs.multiple) {
+                    // For multiple field always get id of the object
+                    parsedOption.id = option.id;
+                }
+
+                return parsedOption;
+            },
+            getOptions: function(raw_options, options, attrs, config, extendCurrentOptions) {
                 angular.forEach(raw_options, function (option) {
-                    var repr,
-                        optionId;
-
-                    if (config.nameFromFormat) {
-                        repr = formatString(config.nameOpts.source, option);
-                    } else {
-                        repr = option[config.nameOpts.source];
-                    }
-
-                    if (attrs.multiple) {
-                        // For multiple field always get id of the object
-                        optionId = option.id;
-                    } else {
-                        optionId = option[config.id];
-                    }
+                    var parsedOption = remoteService.parseOption(option, attrs, config);
 
                     if (extendCurrentOptions) {
-                        if (remoteService.excludeValue !== optionId) {
-                            options.push({
-                                id: optionId,
-                                repr: repr
-                            });
+                        if (remoteService.excludeValue !== parsedOption.id) {
+                            options.push(parsedOption);
                         }
                     } else {
-                        options.push({
-                            id: optionId,
-                            repr: repr
-                        });
+                        options.push(parsedOption);
                     }
                 });
             }
@@ -145,40 +143,6 @@ angular.module('lux.form.utils', ['lux.services'])
             } else {
                 return elem.ownerDocument.defaultView.pageYOffset;
             }
-        }
-
-        /**
-         * Since scroll events can fire at a high rate, the event handler
-         * shouldn't execute computationally expensive operations such as DOM modifications.
-         * based on https://developer.mozilla.org/en-US/docs/Web/Events/scroll#requestAnimationFrame_.2B_customEvent
-         *
-         * @param type
-         * @param name
-         * @param (obj)
-         * @returns {Function}
-         */
-        function throttle(type, name, obj) {
-            var running = false;
-
-            obj = obj || window;
-
-            var func = function() {
-                if (running) {
-                    return;
-                }
-
-                running = true;
-                requestAnimationFrame(function() {
-                    obj.dispatchEvent(new CustomEvent(name));
-                    running = false;
-                });
-            };
-
-            obj.addEventListener(type, func);
-
-            return function() {
-                obj.removeEventListener(type, func);
-            };
         }
 
         return {
@@ -219,13 +183,16 @@ angular.module('lux.form.utils', ['lux.services'])
                         }
                     };
 
-                    removeThrottle = throttle('scroll', 'optimizedScroll', container[0]);
-                    container.on('optimizedScroll', handler);
+                    require(['lodash'], function(_) {
+                        // Executes 500ms after last call of the debounced function.
+                        var debounced = _.debounce(handler, 500);
+                        container.on('scroll', debounced);
 
-                    scope.$on('$destroy', function() {
-                        removeThrottle();
-                        container.off('optimizedScroll', handler);
+                        scope.$on('$destroy', function() {
+                            debounced();
+                        });
                     });
+
 
                     return true;
                 }
@@ -245,7 +212,7 @@ angular.module('lux.form.utils', ['lux.services'])
         };
     }])
     //
-    .directive('remoteOptions', ['$lux', '$timeout', '$q', 'remoteService', function ($lux, $timeout, $q, remoteService) {
+    .directive('remoteOptions', ['$lux', '$q', 'remoteService', function ($lux, $q, remoteService) {
 
         /*
          * Set up initial values used in query strings
