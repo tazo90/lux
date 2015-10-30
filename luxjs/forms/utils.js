@@ -69,8 +69,10 @@ angular.module('lux.form.utils', ['lux.services'])
 
                                 config.params[config.id] = selectedValue;
                                 api.get(null, config.params).then(function(data) {
-                                    var option = remoteService.parseOption(data.data.result[0], attrs, config);
-                                    options.splice(options.length-3, 0, option);
+                                    if (data.data.result.length > 0) {
+                                        var option = remoteService.parseOption(data.data.result[0], attrs, config);
+                                        options.splice(options.length-3, 0, option);
+                                    }
                                 });
                             }
                         }
@@ -84,6 +86,7 @@ angular.module('lux.form.utils', ['lux.services'])
                 });
                 return defer.promise;
             },
+            //
             parseOption: function(option, attrs, config) {
                 var parsedOption = {
                     id: option[config.id],
@@ -101,6 +104,7 @@ angular.module('lux.form.utils', ['lux.services'])
 
                 return parsedOption;
             },
+            //
             getOptions: function(raw_options, options, attrs, config, extendCurrentOptions) {
                 angular.forEach(raw_options, function (option) {
                     var parsedOption = remoteService.parseOption(option, attrs, config);
