@@ -54,14 +54,16 @@ angular.module('lux.form.utils', ['lux.services'])
 
                     remoteService.parseOptions(data.data.result, options, attrs, config, extendCurrentOptions);
 
+                    // If initially value comes from not the first pagination page,
+                    // then we need to get element from API because of the field repr.
                     require(['lodash'], function(_) {
                         var selectedValue = scope[scope.formModelName][attrs.name];
-
-                        if (selectedValue.length > 0) {
+                        if (selectedValue.length > 0 && searchValue === null) {
                             var isElementFromFirstPage = _.findIndex(options, function(item) {
                                 return item.id === selectedValue;
                             });
-                            // If selected item is not from first page then get it from API
+                            // If selected value doenn't exist in current options then get it
+                            // and add to the options
                             if (isElementFromFirstPage === -1) {
                                 remoteService.excludeValue = selectedValue;
 
@@ -321,7 +323,6 @@ angular.module('lux.form.utils', ['lux.services'])
 
             function getInfinityScrollChunk(config) {
                 return remoteService.query(api, target, scope, attrs, select, config, null, true);
-
             }
 
             // Handler for infinity scroll

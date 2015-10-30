@@ -154,7 +154,8 @@
                         thisField = scope.field,
                         tc = thisField.type.split('.'),
                         info = elements[tc.splice(0, 1)[0]],
-                        renderer;
+                        renderer,
+                        fieldType;
 
                     scope.extraClasses = tc.join(' ');
                     scope.info = info;
@@ -162,12 +163,18 @@
                     if (info) {
                         // Pick the renderer by checking `type`
                         if (info.hasOwnProperty('type'))
-                            renderer = this[info.type];
+                            fieldType = info.type;
 
                         // If no element type, use the `element`
                         if (!renderer)
-                            renderer = this[info.element];
+                            fieldType = info.element;
                     }
+
+                    renderer = this[fieldType];
+
+                    var typeConfig = scope.formModelName + 'Type';
+                    scope[typeConfig] = scope[typeConfig] || {};
+                    scope[typeConfig][thisField.name] = fieldType;
 
                     if (!renderer)
                         renderer = this.renderNotElements;
@@ -461,7 +468,7 @@
                         selectUI.attr('data-remote-options', field['data-remote-options'])
                                 .attr('data-remote-options-id', field['data-remote-options-id'])
                                 .attr('data-remote-options-value', field['data-remote-options-value']);
-                                //.attr('data-remote-options-params', field['data-remote-options-params']);
+                                .attr('data-remote-options-params', field['data-remote-options-params']);
 
                         if (field.multiple) {
                             selectUI.attr('on-select', 'multipleSelect($select, $model)');
