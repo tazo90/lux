@@ -19,34 +19,24 @@ angular.module('lux.form.utils', ['lux.services'])
              * @returns {promise}
              */
             query: function(api, target, scope, attrs, config, searchValue, extendCurrentOptions) {
-                var defer = $q.defer();
-
-                if (extendCurrentOptions) {
-                    // Extend current options
+                var defer = $q.defer(),
                     options = scope[target.name];
-
-                    if (options.length > config.optionsTotal) {
-                        defer.reject();
-                        return defer.promise;
-                    } else {
-                        // Increase offset
-                        config.params.offset += config.params.limit;
-                    }
-                } else {
-                    // Add initial options
-                    var options = [];
-                    scope[target.name] = options;
-
-                    config.initialValue.id = '';
-                    config.initialValue.name = 'Loading...';
-
-                    options.push(config.initialValue);
-                }
 
                 if (searchValue === null)
                     delete config.params[config.id];
-                else
+                else {
                     config.params[config.id] = searchValue;
+                    //scope[target.name + '_copy'] = angular.copy(options);
+                }
+
+                if (!extendCurrentOptions) {
+                    // Add initial options
+                    options = [];
+                    scope[target.name] = options;
+                    config.initialValue.id = '';
+                    config.initialValue.name = 'Loading...';
+                    options.push(config.initialValue);
+                }
 
                 api.get(null, config.params).then(function(data) {
                     // Get amount of total items
@@ -79,6 +69,28 @@ angular.module('lux.form.utils', ['lux.services'])
                             name: name
                         });
                     });
+
+                    require(['lodash'], function(_) {
+                        var selectedValue = scope[scope.formModelName][attrs.name];
+
+                        //console.log(selectedValue);
+
+                        /*var selectedIndex = _.findIndex(options, function(item) {
+                            return item.id === selectedValue.id;
+                        });
+                        if (selectedIndex === -1) {
+                            options.splice(1, 0, {id: selectedValue, name: selectedValue});
+                            //options.push({id: selectedValue, name: selectedValue});
+                        }*/
+
+
+                        //scope[target.name] = _.uniq(options, 'id');
+                        //console.log(options);
+                    });
+
+                    console.log(options);
+
+                    defer.resolve(data);
 
                 }, function(data) {
                     options[0] = '(error loading options)';
@@ -213,7 +225,7 @@ angular.module('lux.form.utils', ['lux.services'])
         };
     }])
     //
-    .directive('remoteOptions', ['$lux', '$timeout', 'remoteService', function ($lux, $timeout, remoteService) {
+    .directive('remoteOptions', ['$lux', '$timeout', '$q', 'remoteService', function ($lux, $timeout, $q, remoteService) {
 
         /*
          * Set up initial values used in query strings
@@ -253,26 +265,49 @@ angular.module('lux.form.utils', ['lux.services'])
             remoteService.query(api, target, scope, attrs, config, null, false);
 
              // Custom filter function
-            scope.remoteSearch = function($select, fieldMultiple) {
+            scope.remoteSearch = function($select, isMultipleField) {
                 if ($select.search !== '') {
                     var searchValue = $select.search;
                     setupInitialQuery(config);
 
                     // For multiple fields use name as a lookup key
-                    if (fieldMultiple === true)
+                    if (isMultipleField === true)
                         config.id = 'name';
 
                     remoteService.query(api, target, scope, attrs, config, searchValue, false);
                 } else {
                     // Get initial options
-                    scope.resetOptions();
+                    //console.log(scope[target.name + '_copy']);
+                    //if (scope[target.name + '_copy'] !== undefined) {
+                        //scope[target.name] = scope[target.name + '_copy'];
+                        //delete scope[target.name + '_copy'];
+                    //}
+                    //delete scope[target.name + '_copy'];
+                    //scope.resetOptions();
+
+                    // Set initial params
+                    setupInitialQuery(config);
+                    // Reset info about chunk
+                    scope.hasNextChunk = true;
+                    // Get data
+                    remoteService.query(api, target, scope, attrs, config, null, false);
                 }
             };
 
             // Get initial data
-            scope.resetOptions = function() {
-                setupInitialQuery(config);
-                remoteService.query(api, target, scope, attrs, config, null, false);
+            scope.selectValue = function($select) {
+                //console.log(scope[target.name]);
+                //setupInitialQuery(config);
+                //remoteService.query(api, target, scope, attrs, config, null, false);
+                var fieldValue = scope[scope.formModelName][attrs.name];
+                fieldValue = {
+                    id: $select.selected.id,
+                    name: $select.selected.name
+                };
+                console.log('selected', fieldValue);
+                //console.log(scope[scope.formModelName][attrs.name]);
+                //console.log($select.selected);
+                //console.log($model);
             };
 
             // Handles selection on multiple select
@@ -285,12 +320,30 @@ angular.module('lux.form.utils', ['lux.services'])
                 }
             };
 
+            function getInfinityScrollChunk(config) {
+                return remoteService.query(api, target, scope, attrs, config, null, true);
+            }
+
+            //scope.hasNextChunk = true;
             // Handler for infinity scroll
             scope.loadMore = function() {
-                $timeout(function() {
-                    remoteService.query(api, target, scope, attrs, config, null, true);
-                });
-            };
+                if (scope.isRequestMoreItems || !scope.hasNextChunk)
+                    return $q.reject();
+
+                scope.isRequestMoreItems = true;
+                config.params.offset += config.params.limit;
+                return getInfinityScrollChunk(config)
+                    .then(function(data) {
+                        var options = scope[target.name];
+                        if (options.length > config.optionsTotal)
+                            scope.hasNextChunk = false;
+                    }, function(err) {
+                        return $q.reject(err);
+                    })
+                    .finally(function() {
+                        scope.isRequestMoreItems = false;
+                    });
+                };
         }
 
         function link(scope, element, attrs) {

@@ -423,7 +423,7 @@
 
                     scope.getValue = function(value) {
                         if (isObject(value)) {
-                            return value.repr || value.name || value.id;
+                            return value.name || value.repr || value.id;
                         } else {
                             return value;
                         }
@@ -460,8 +460,8 @@
                         // Remote options
                         selectUI.attr('data-remote-options', field['data-remote-options'])
                                 .attr('data-remote-options-id', field['data-remote-options-id'])
-                                .attr('data-remote-options-value', field['data-remote-options-value'])
-                                .attr('data-remote-options-params', field['data-remote-options-params']);
+                                .attr('data-remote-options-value', field['data-remote-options-value']);
+                                //.attr('data-remote-options-params', field['data-remote-options-params']);
 
                         if (field.multiple) {
                             selectUI.attr('on-select', 'multipleSelect($select, $model)');
@@ -469,13 +469,14 @@
                         } else {
                             // Add select handler only for non multiple field
                             // because multiple fields use separate url for initial options
-                            selectUI.attr('on-select', 'resetOptions()');
+                            selectUI.attr('on-select', 'selectValue($select)');
+                            //match.html('{{getValue($select.selected)}}');
                             match.html('{{getValue($select.selected)}}');
                         }
 
                         choices.attr('repeat', field['data-ng-options-ui-select'])
                                .attr('refresh', 'remoteSearch($select,' + field.multiple + ')')
-                               .attr('refresh-delay', 0);
+                               .attr('refresh-delay', 250);
                         choices_inner.html('{{item.name || item.id}}');
                     } else {
                         // Local options

@@ -86,6 +86,19 @@
                 };
 
                 scope = $rootScope.$new();
+
+                scope.people = [
+                    { name: 'Adam', email: 'adam@email.com', group: 'Foo', age: 12 },
+                    { name: 'Amalie', email: 'amalie@email.com', group: 'Foo', age: 12 },
+                    { name: 'Estefanía', email: 'estefanía@email.com', group: 'Foo', age: 21 },
+                    { name: 'Adrian', email: 'adrian@email.com', group: 'Foo', age: 21 },
+                    { name: 'Wladimir', email: 'wladimir@email.com', group: 'Foo', age: 30 },
+                    { name: 'Samantha', email: 'samantha@email.com', group: 'bar', age: 30 },
+                    { name: 'Nicole', email: 'nicole@email.com', group: 'bar', age: 43 },
+                    { name: 'Natasha', email: 'natasha@email.com', group: 'Baz', age: 54 }
+                ];
+
+                scope.selection = {};
             });
 
             lux.formSelectUITests.select = testFormUtils.createForm({
@@ -100,17 +113,7 @@
                                 "data-remote-options='{\"url\": \"dummy://url\", \"name\": \"users_url\"}'>" +
                         "</lux-form></div>");
 
-            expect(api.get).toHaveBeenCalledWith(null, {limit:25, offset:0, id:null});
-        });
-
-        it("check params", function() {
-            var element = testFormUtils.digest($compile, $rootScope,
-                "<div><lux-form data-options='lux.formSelectUITests.select'" +
-                                "data-remote-options='{\"url\": \"dummy://url\", \"name\": \"users_url\"}'" +
-                                "data-remote-options-id='username'>" +
-                        "</lux-form></div>");
-
-            expect(api.get).toHaveBeenCalledWith(null, {limit:25, offset:0, username:null});
+            expect(api.get).toHaveBeenCalledWith(null, {limit:25, offset:0});
         });
 
         it("check remoteSearch()", function() {
@@ -128,13 +131,15 @@
             // One to many field
             sc.remoteSearch(select, false);
             expect(api.get).toHaveBeenCalledWith(null, {limit:25, offset:0, username:'test_user'});
+            $lux.resetAllSpies();
             // Many to many field
             sc.remoteSearch(select, true);
             expect(api.get).toHaveBeenCalledWith(null, {limit:25, offset:0, name:'test_user'});
             // Check empty
+            $lux.resetAllSpies();
             select = {search: ''};
             sc.remoteSearch(select, false);
-            expect(api.get).toHaveBeenCalledWith(null, {limit:25, offset:0, name:null});
+            expect(api.get).toHaveBeenCalledWith(null, {limit:25, offset:0});
         });
 
         it("check multipleSelect()", function() {
@@ -163,8 +168,11 @@
 
 
             sc = element.scope();
+            // First call
             sc.loadMore();
-            $timeout.flush();
+            expect(api.get).toHaveBeenCalled();
+            // Second call
+            sc.loadMore();
             expect(api.get).toHaveBeenCalled();
         });
 
