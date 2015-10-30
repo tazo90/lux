@@ -32,3 +32,8 @@ def add_css(all):
 
     css(".equal, .equal > div[class*='col-']",
         Flex())
+
+    # Force ui-select to display options always below input
+    css('.ui-select-bootstrap > .ui-select-choices',
+        position='relative !important',
+        top='0px !important')

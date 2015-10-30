@@ -91,17 +91,8 @@
                                 value = angular.fromJson(value);
 
                                 // Handles one-to-many field which is serve via json
-                                if (value.hasOwnProperty('id')) {
-                                    //console.log('!!!! ', value);
-                                    //console.log(formScope);
-                                    //value = value.id;
-                                    console.log('val' ,value);
-                                    value = {
-                                        id: value.id,
-                                        name: value.repr
-                                    };
-                                    console.log('fetched', value);
-                                }
+                                if (value.hasOwnProperty('id'))
+                                    value = value.id;
                                 else
                                     value = JSON.stringify(value, null, 4);
                             }

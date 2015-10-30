@@ -423,7 +423,7 @@
 
                     scope.getValue = function(value) {
                         if (isObject(value)) {
-                            return value.name || value.repr || value.id;
+                            return value.repr || value.id || value.name;
                         } else {
                             return value;
                         }
@@ -467,17 +467,13 @@
                             selectUI.attr('on-select', 'multipleSelect($select, $model)');
                             match.html('{{getValue($item)}}');
                         } else {
-                            // Add select handler only for non multiple field
-                            // because multiple fields use separate url for initial options
-                            selectUI.attr('on-select', 'selectValue($select)');
-                            //match.html('{{getValue($select.selected)}}');
                             match.html('{{getValue($select.selected)}}');
                         }
 
                         choices.attr('repeat', field['data-ng-options-ui-select'])
                                .attr('refresh', 'remoteSearch($select,' + field.multiple + ')')
                                .attr('refresh-delay', 250);
-                        choices_inner.html('{{item.name || item.id}}');
+                        choices_inner.html('{{item.repr || item.id}}');
                     } else {
                         // Local options
                         var optsId = field.name + '_opts',
