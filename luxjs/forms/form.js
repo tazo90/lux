@@ -467,7 +467,7 @@
                         // Remote options
                         selectUI.attr('data-remote-options', field['data-remote-options'])
                                 .attr('data-remote-options-id', field['data-remote-options-id'])
-                                .attr('data-remote-options-value', field['data-remote-options-value']);
+                                .attr('data-remote-options-value', field['data-remote-options-value'])
                                 .attr('data-remote-options-params', field['data-remote-options-params']);
 
                         if (field.multiple) {
