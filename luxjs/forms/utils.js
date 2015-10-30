@@ -24,7 +24,7 @@ angular.module('lux.form.utils', ['lux.services'])
              * @param extendCurrentOptions {boolean} - flag that indicates whether to add new options to existing options
              * @returns {promise}
              */
-            query: function(api, target, scope, attrs, select, config, searchValue, extendCurrentOptions) {
+            query: function(api, target, scope, attrs, config, searchValue, extendCurrentOptions) {
                 var defer = $q.defer(),
                     options = scope[target.name];
 
@@ -62,8 +62,7 @@ angular.module('lux.form.utils', ['lux.services'])
                             var isElementFromFirstPage = _.findIndex(options, function(item) {
                                 return item.id === selectedValue;
                             });
-                            // If selected value doenn't exist in current options then get it
-                            // and add to the options
+
                             if (isElementFromFirstPage === -1) {
                                 remoteService.excludeValue = selectedValue;
 
@@ -228,7 +227,7 @@ angular.module('lux.form.utils', ['lux.services'])
             delete config.params[config.id];
         }
 
-        function fill(api, target, scope, attrs, select) {
+        function fill(api, target, scope, attrs) {
 
             var config = {
                 id: attrs.remoteOptionsId || 'id',
@@ -254,7 +253,7 @@ angular.module('lux.form.utils', ['lux.services'])
                 scope[scope.formModelName][attrs.name] = '';
             }
 
-            remoteService.query(api, target, scope, attrs, select, config, null, false);
+            remoteService.query(api, target, scope, attrs, config, null, false);
 
              // Custom filter function
             scope.remoteSearch = function($select, isMultipleField) {
@@ -266,7 +265,7 @@ angular.module('lux.form.utils', ['lux.services'])
                     if (isMultipleField === true)
                         config.id = 'name';
 
-                    remoteService.query(api, target, scope, attrs, select, config, searchValue, false);
+                    remoteService.query(api, target, scope, attrs, config, searchValue, false);
                 } else {
                     // Reset options
                     scope.getInitialOptions();
@@ -279,7 +278,7 @@ angular.module('lux.form.utils', ['lux.services'])
                 // Reset info about chunk
                 scope.hasNextChunk = true;
                 // Get data
-                remoteService.query(api, target, scope, attrs, select, config, null, false);
+                remoteService.query(api, target, scope, attrs, config, null, false);
             };
 
             // Handles selection on multiple select
@@ -293,7 +292,7 @@ angular.module('lux.form.utils', ['lux.services'])
             };
 
             function getInfinityScrollChunk(config) {
-                return remoteService.query(api, target, scope, attrs, select, config, null, true);
+                return remoteService.query(api, target, scope, attrs, config, null, true);
             }
 
             // Handler for infinity scroll
@@ -318,14 +317,12 @@ angular.module('lux.form.utils', ['lux.services'])
         }
 
         function link(scope, element, attrs) {
-            var select = element.scope().$select;
-
             if (attrs.remoteOptions) {
                 var target = JSON.parse(attrs.remoteOptions),
                     api = $lux.api(target);
 
                 if (api && target.name)
-                    return fill(api, target, scope, attrs, select);
+                    return fill(api, target, scope, attrs);
             }
             // TODO: message
         }
