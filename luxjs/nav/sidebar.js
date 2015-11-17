@@ -169,11 +169,9 @@
                             else
                                 element.after(inner);
 
-                            if (document.readyState === 'complete') {
-                                $timeout(function() {
-                                    element.removeClass('preload');
-                                });
-                            }
+                            $timeout(function() {
+                                element.removeClass('preload');
+                            }, 0);
                         }
                     };
                 }
