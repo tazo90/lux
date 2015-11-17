@@ -35,6 +35,8 @@
             function initSideBar (sidebars, element, sidebar, position) {
                 sidebar = angular.extend({}, sidebarDefaults, sidebar);
                 sidebar.position = position;
+                // preload removes transitions
+                element.addClass('preload');
                 if (!sidebar.collapse)
                     element.addClass('sidebar-open-' + position);
                 if (sidebar.sections) {
@@ -133,9 +135,9 @@
         //
         //  Directive for the sidebar
         .directive('sidebar', ['$compile', 'sidebarService', 'navService', 'sidebarTemplate',
-                               'navbarTemplate', '$templateCache',
+                               'navbarTemplate', '$templateCache', '$timeout',
                         function ($compile, sidebarService, navService, sidebarTemplate, navbarTemplate,
-                                  $templateCache) {
+                                  $templateCache, $timeout) {
             //
             return {
                 restrict: 'AE',
@@ -166,6 +168,12 @@
                                 lux.querySelector(element, '.content-wrapper').append(inner);
                             else
                                 element.after(inner);
+
+                            if (document.readyState === 'complete') {
+                                $timeout(function() {
+                                    element.removeClass('preload');
+                                });
+                            }
                         }
                     };
                 }

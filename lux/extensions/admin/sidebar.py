@@ -48,6 +48,12 @@ def add_css(all):
         width=pc(100),
         overflow_x='hidden')
 
+    css('.preload *',
+        _webkit_transition='none !important',
+        _moz_transition='none !important',
+        _ms_transition='none !important',
+        _o_transition='none !important')
+
     css('.sidebar-body',
         position='relative')
 
