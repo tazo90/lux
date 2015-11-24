@@ -70,7 +70,10 @@ angular.module('lux.form.utils', ['lux.services'])
                                 api.get(null, config.params).then(function(data) {
                                     if (data.data.result.length > 0) {
                                         var option = remoteService.parseOption(data.data.result[0], attrs, config);
+                                        // Add an option to the third place from the end
                                         options.splice(options.length-3, 0, option);
+                                        // Update selected value in list
+                                        scope.$select.selected = option;
                                     }
                                 });
                             }

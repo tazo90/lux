@@ -2676,8 +2676,8 @@ angular.module('lux.cms.core', [])
                         // Remote options
                         selectUI.attr('data-remote-options', field['data-remote-options'])
                                 .attr('data-remote-options-id', field['data-remote-options-id'])
-                                .attr('data-remote-options-value', field['data-remote-options-value']);
-                                //.attr('data-remote-options-params', field['data-remote-options-params']);
+                                .attr('data-remote-options-value', field['data-remote-options-value'])
+                                .attr('data-remote-options-params', field['data-remote-options-params']);
 
                         if (field.multiple) {
                             selectUI.attr('on-select', 'multipleSelect($select, $model)');
@@ -3465,7 +3465,10 @@ angular.module('lux.form.utils', ['lux.services'])
                                 api.get(null, config.params).then(function(data) {
                                     if (data.data.result.length > 0) {
                                         var option = remoteService.parseOption(data.data.result[0], attrs, config);
+                                        // Adds an option to the third place from the end
                                         options.splice(options.length-3, 0, option);
+                                        // Update selected value in list
+                                        scope.$select.selected = option;
                                     }
                                 });
                             }
