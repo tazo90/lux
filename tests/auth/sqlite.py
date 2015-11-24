@@ -228,7 +228,8 @@ class TestSqlite(test.AppTestCase, AuthUtils):
                                               token=token)
 
         self.assertValidationError(request.response, 'name',
-                                   'abcd not available')
+                                   'Only lower case, alphanumeric characters '
+                                   'and hyphens are allowed')
 
     def test_login_fail(self):
         data = {'username': 'jdshvsjhvcsd',
@@ -453,3 +454,8 @@ class TestSqlite(test.AppTestCase, AuthUtils):
                                              token=token)
         data = self.json(request.response, 200)
         self.assertTrue('groups[]' in data)
+
+    def test_corrupted_token(self):
+        '''Test the response when using a corrupted token
+        '''
+        token = yield from self._token()
