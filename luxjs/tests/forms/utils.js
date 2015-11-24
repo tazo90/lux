@@ -1,54 +1,45 @@
-    // Utility for creating a JSON form for testing
-    var testFormUtils = {
-        createForm: function () {
-            var form = {
-                field: {
-                    type: 'form'
-                },
-                children: []
+define(function(require) {
+
+    angular.module('lux.form.utils.test', [])
+        .factory('$lux', function() {
+            var thenSpy = jasmine.createSpy();
+            var luxApiMock = {
+                get: jasmine.createSpy(),
+                post: function() {
+                    return {
+                        then: function() {}
+                    }
+                }
             };
-            lux.forEach(arguments, function (attrs) {
-                form['children'].push({field: attrs});
+            luxApiMock.get.and.returnValue({
+                then: thenSpy
             });
-            return form;
-        },
-        digest: function ($compile, $rootScope, template) {
-            var scope = $rootScope.$new(),
-                element = $compile(template)(scope);
-            scope.$digest();
-            return element;
-        }
-    };
+
+            var luxMock = {
+                api: function(url) {
+                    return luxApiMock;
+                },
+                getLastThenSpy: function() {
+                    return thenSpy;
+                },
+                resetAllSpies: function() {
+                    thenSpy.calls.reset();
+                    luxApiMock.get.calls.reset();
+                }
+            };
+
+            return luxMock;
+        });
 
     describe("Test lux.form.utils", function() {
-
-        // Angular module for select-UI forms
-        angular.module('lux.form.utils.test.selectui', ['lux.form'])
-
-            .factory('formElements', ['defaultFormElements', function (defaultFormElements) {
-                return function () {
-                    var elements = defaultFormElements();
-                    elements.select.widget = {
-                        name: 'selectUI',
-                        enableSearch: true,
-                        theme: 'bootstrap'
-                    };
-                    return elements;
-                };
-            }]);
-
         //
-        lux.formSelectUITests = {};
+        lux.formUtilsTests = {};
 
         var api;
         var scope;
-        var $timeout;
         var $compile;
         var $rootScope;
-        var $httpBackend;
-        var $document;
-        var element;
-        var $lux = angular.injector(['lux.tests.mocks']).get('$lux');
+        var $lux = angular.injector(['lux.form.utils.test']).get('$lux');
         var windowFake = {
             lux: {
                 context: {
@@ -57,59 +48,60 @@
             }
         };
 
+        // Utility for creating a JSON form for testing
+        var testFormUtils = {
+            createForm: function () {
+                var form = {
+                    field: {
+                        type: 'form'
+                    },
+                    children: []
+                };
+                lux.forEach(arguments, function (attrs) {
+                    form['children'].push({field: attrs});
+                });
+                return form;
+            },
+            digest: function ($compile, scope, template) {
+                element = $compile(template)(scope);
+                scope.$digest();
+                return element;
+            }
+        };
+
         beforeEach(function () {
-            module('lux.form.utils.test.selectui');
-
-            $document = angular.element(document);
-
             angular.mock.module('lux.form.utils', function($provide) {
                 $provide.value('$lux', $lux);
                 $provide.value('$window', windowFake);
-                $provide.value('$document', $document);
             });
 
             api = $lux.api();
             $lux.resetAllSpies();
 
-            inject(function (_$timeout_, _$compile_, _$rootScope_, _$httpBackend_) {
-                $timeout = _$timeout_;
+            inject(function (_$compile_, _$rootScope_) {
                 $compile = _$compile_;
                 $rootScope = _$rootScope_;
-                $httpBackend = _$httpBackend_;
 
-                $rootScope.formModelName = 'UserForm';
-                $rootScope.UserForm = {
+                scope = $rootScope.$new();
+                scope.formModelName = 'UserForm';
+                scope.UserForm = {
                     users: [{
                       id: 1,
                       name: 'test_option'
                     }]
                 };
-
-                scope = $rootScope.$new();
-
-                scope.people = [
-                    { name: 'Adam', email: 'adam@email.com', group: 'Foo', age: 12 },
-                    { name: 'Amalie', email: 'amalie@email.com', group: 'Foo', age: 12 },
-                    { name: 'Estefanía', email: 'estefanía@email.com', group: 'Foo', age: 21 },
-                    { name: 'Adrian', email: 'adrian@email.com', group: 'Foo', age: 21 },
-                    { name: 'Wladimir', email: 'wladimir@email.com', group: 'Foo', age: 30 },
-                    { name: 'Samantha', email: 'samantha@email.com', group: 'bar', age: 30 },
-                    { name: 'Nicole', email: 'nicole@email.com', group: 'bar', age: 43 },
-                    { name: 'Natasha', email: 'natasha@email.com', group: 'Baz', age: 54 }
-                ];
-
                 scope.selection = {};
-            });
-
-            lux.formSelectUITests.select = testFormUtils.createForm({
-                type: 'select',
-                name: 'choice',
             });
         });
 
         it("call directive", function() {
-            var element = testFormUtils.digest($compile, $rootScope,
-                "<div><lux-form data-options='lux.formSelectUITests.select'" +
+            lux.formUtilsTests.form1 = testFormUtils.createForm({
+                type: 'select',
+                name: 'choice',
+            });
+
+            var element = testFormUtils.digest($compile, scope,
+                "<div><lux-form data-options='lux.formUtilsTests.form1'" +
                                 "data-remote-options='{\"url\": \"dummy://url\", \"name\": \"users_url\"}'>" +
                         "</lux-form></div>");
 
@@ -117,8 +109,13 @@
         });
 
         it("check remoteSearch()", function() {
-            var element = testFormUtils.digest($compile, $rootScope,
-                "<div><lux-form data-options='lux.formSelectUITests.select'" +
+            lux.formUtilsTests.form2 = testFormUtils.createForm({
+                type: 'select',
+                name: 'choice',
+            });
+
+            var element = testFormUtils.digest($compile, scope,
+                "<div><lux-form data-options='lux.formUtilsTests.form2'" +
                                 "data-remote-options='{\"url\": \"dummy://url\", \"name\": \"users_url\"}'" +
                                 "data-remote-options-id='username'>" +
                         "</lux-form></div>");
@@ -143,8 +140,13 @@
         });
 
         it("check multipleSelect()", function() {
-            var element = testFormUtils.digest($compile, $rootScope,
-                "<div><lux-form data-options='lux.formSelectUITests.select'" +
+            lux.formUtilsTests.form3 = testFormUtils.createForm({
+                type: 'select',
+                name: 'choice',
+            });
+
+            var element = testFormUtils.digest($compile, scope,
+                "<div><lux-form data-options='lux.formUtilsTests.form3'" +
                                 "data-remote-options='{\"url\": \"dummy://url\", \"name\": \"users_url\"}'" +
                                 "data-remote-options-id='username' data-multiple='' data-name='users'>" +
                         "</lux-form></div>");
@@ -160,8 +162,13 @@
         });
 
         it("check loadMore()", function() {
-            var element = testFormUtils.digest($compile, $rootScope,
-                "<div><lux-form data-options='lux.formSelectUITests.select'" +
+            lux.formUtilsTests.form4 = testFormUtils.createForm({
+                type: 'select',
+                name: 'choice',
+            });
+
+            var element = testFormUtils.digest($compile, scope,
+                "<div><lux-form data-options='lux.formUtilsTests.form4'" +
                                 "data-remote-options='{\"url\": \"dummy://url\", \"name\": \"users_url\"}'" +
                                 "data-remote-options-id='username' data-name='users'>" +
                         "</lux-form></div>");
@@ -177,8 +184,13 @@
         });
 
         it("populate options with response data on successful completion of get", function() {
-            var element = testFormUtils.digest($compile, $rootScope,
-                "<div><lux-form data-options='lux.formSelectUITests.select'" +
+            lux.formUtilsTests.form5 = testFormUtils.createForm({
+                type: 'select',
+                name: 'choice',
+            });
+
+            var element = testFormUtils.digest($compile, scope,
+                "<div><lux-form data-options='lux.formUtilsTests.form5'" +
                                 "data-remote-options='{\"url\": \"dummy://url\", \"name\": \"users_url\"}'" +
                                 "data-remote-options-id='username' data-name='users'>" +
                         "</lux-form></div>");
@@ -203,3 +215,4 @@
             expect(sc.users_url.length).toBe(2);
         });
     });
+});

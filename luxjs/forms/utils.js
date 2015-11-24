@@ -162,7 +162,6 @@ angular.module('lux.form.utils', ['lux.services'])
                     }
 
                     var lastChoice = angular.element(rows[rows.length - 1]);
-
                     container = angular.element(elem.querySelectorAll('.ui-select-choices'));
 
                     var handler = function() {
@@ -175,7 +174,6 @@ angular.module('lux.form.utils', ['lux.services'])
                         }
 
                         elementBottom = offsetTop(lastChoice) - containerTopOffset + height(lastChoice);
-
                         var remaining = elementBottom - containerBottom,
                             shouldScroll = remaining <= height(container) * scrollDistance + 1;
 
@@ -195,7 +193,6 @@ angular.module('lux.form.utils', ['lux.services'])
                             debounced();
                         });
                     });
-
 
                     return true;
                 }
@@ -242,6 +239,10 @@ angular.module('lux.form.utils', ['lux.services'])
                     limit: 25,
                     offset: 0
                 }
+            },
+            loadingItem = {
+                id: '',
+                repr: 'Loading...'
             };
 
             config.nameFromFormat = config.nameOpts.type === 'formatString';
@@ -295,10 +296,27 @@ angular.module('lux.form.utils', ['lux.services'])
                 return remoteService.query(api, target, scope, attrs, config, null, true);
             }
 
+            function addLoadingStateItem() {
+                var options = scope[target.name],
+                    lastIndex = options.length - 1;
+                options.splice(lastIndex, 0, loadingItem);
+            }
+
+            function removeLoadingStateItem() {
+                var options = scope[target.name],
+                    index = options.indexOf(loadingItem);
+                if (index < 0) {
+                    return;
+                }
+                options.splice(index, 1);
+            }
+
             // Handler for infinity scroll
             scope.loadMore = function() {
                 if (scope.isRequestMoreItems || !scope.hasNextChunk)
                     return $q.reject();
+
+                addLoadingStateItem();
 
                 scope.isRequestMoreItems = true;
                 config.params.offset += config.params.limit;
@@ -311,6 +329,7 @@ angular.module('lux.form.utils', ['lux.services'])
                         return $q.reject(err);
                     })
                     .finally(function() {
+                        removeLoadingStateItem();
                         scope.isRequestMoreItems = false;
                     });
                 };

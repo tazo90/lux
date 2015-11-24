@@ -1,6 +1,6 @@
 //      Lux Library - v0.3.0
 
-//      Compiled 2015-11-23.
+//      Compiled 2015-11-24.
 //      Copyright (c) 2015 - Luca Sbardella
 //      Licensed BSD.
 //      For all details and documentation:
@@ -955,7 +955,6 @@ function(angular, root) {
                         forEach(data, function (value, key) {
                             // TODO: do we need a callback for JSON fields?
                             // or shall we leave it here?
-
                             if (formScope[formScope.formModelName + 'Type'][key] === 'textarea' && isObject(value)) {
                                 value = JSON.stringify(value, null, 4);
                             }
@@ -2234,6 +2233,7 @@ angular.module('lux.cms.core', [])
         .constant('formDefaults', {
             // Default layout
             layout: 'default',
+            //
             // for horizontal layout
             labelSpan: 2,
             showLabels: true,
@@ -2636,6 +2636,15 @@ angular.module('lux.cms.core', [])
                     scope.groupBy = function (item) {
                         return item.group;
                     };
+
+                    scope.getValue = function(value) {
+                        if (isObject(value)) {
+                            return value.repr || value.id || value.name;
+                        } else {
+                            return value;
+                        }
+                    };
+
                     // Search specified global
                     scope.enableSearch = elements.select.widget.enableSearch;
 
@@ -2661,19 +2670,26 @@ angular.module('lux.cms.core', [])
                         selectUI.attr('multiple', true);
 
                     if (field.hasOwnProperty('data-remote-options')) {
+                        // Add infinity scroll handler
+                        selectUI.attr('select-infinity', 'loadMore()');
+
                         // Remote options
                         selectUI.attr('data-remote-options', field['data-remote-options'])
                                 .attr('data-remote-options-id', field['data-remote-options-id'])
-                                .attr('data-remote-options-value', field['data-remote-options-value'])
-                                .attr('data-remote-options-params', field['data-remote-options-params']);
+                                .attr('data-remote-options-value', field['data-remote-options-value']);
+                                //.attr('data-remote-options-params', field['data-remote-options-params']);
 
-                        if (field.multiple)
-                            match.html('{{$item.repr || $item.name || $item.id}}');
-                        else
-                            match.html('{{$select.selected.name || $select.selected.id}}');
+                        if (field.multiple) {
+                            selectUI.attr('on-select', 'multipleSelect($select, $model)');
+                            match.html('{{getValue($item)}}');
+                        } else {
+                            match.html('{{getValue($select.selected)}}');
+                        }
 
-                        choices.attr('repeat', field['data-ng-options-ui-select'] + ' | filter: $select.search');
-                        choices_inner.html('{{item.name || item.id}}');
+                        choices.attr('repeat', field['data-ng-options-ui-select'])
+                               .attr('refresh', 'remoteSearch($select,' + field.multiple + ')')
+                               .attr('refresh-delay', 250);
+                        choices_inner.html('{{item.repr || item.id}}');
                     } else {
                         // Local options
                         var optsId = field.name + '_opts',
@@ -3382,58 +3398,339 @@ angular.module('lux.form.process', ['ngFileUpload'])
  */
 
 angular.module('lux.form.utils', ['lux.services'])
+    //
+    .factory('remoteService', ['$lux', '$q', '$timeout', function($lux, $q, $timeout) {
+        var remoteService = {
 
-    .directive('remoteOptions', ['$lux', function ($lux) {
+            /*
+             * Value from not first pagination page, that need to be excluded to get rid duplicate items
+            */
+            excludeValue: '',
+
+            /**
+             * Called to get remote options from the API
+             *
+             * @param api
+             * @param target
+             * @param scope
+             * @param attrs
+             * @param config {object} - parameters passed to query string in request
+             * @param searchValue {string} - value of the search was were typed in input field
+             * @param extendCurrentOptions {boolean} - flag that indicates whether to add new options to existing options
+             * @returns {promise}
+             */
+            query: function(api, target, scope, attrs, config, searchValue, extendCurrentOptions) {
+                var defer = $q.defer(),
+                    options = scope[target.name];
+
+                if (searchValue === null)
+                    delete config.params[config.id];
+                else
+                    config.params[config.id] = searchValue;
+
+                if (!extendCurrentOptions) {
+                    // Add initial options
+                    options = [];
+                    scope[target.name] = options;
+                    config.initialValue.id = '';
+                    config.initialValue.repr = 'Loading...';
+                    options.push(config.initialValue);
+                }
+
+                api.get(null, config.params).then(function(data) {
+                    // Get amount of total items
+                    config.optionsTotal = data.data.total;
+
+                    if (searchValue !== null && data.data.result.length === 0) {
+                        options[0].repr = 'No matches found';
+                    } else {
+                        options[0].repr = 'Please select...';
+                    }
+
+                    remoteService.getOptions(data.data.result, options, attrs, config, extendCurrentOptions);
+
+                    // If initially value comes from not the first pagination page,
+                    // then we need to get element from API because of the field repr.
+                    require(['lodash'], function(_) {
+                        var selectedValue = scope[scope.formModelName][attrs.name];
+                        if (!attrs.multiple && searchValue === null) {
+                            var isElementFromFirstPage = _.findIndex(options, function(item) {
+                                return item.id === selectedValue;
+                            });
+
+                            if (isElementFromFirstPage === -1) {
+                                remoteService.excludeValue = selectedValue;
+
+                                config.params[config.id] = selectedValue;
+                                api.get(null, config.params).then(function(data) {
+                                    if (data.data.result.length > 0) {
+                                        var option = remoteService.parseOption(data.data.result[0], attrs, config);
+                                        options.splice(options.length-3, 0, option);
+                                    }
+                                });
+                            }
+                        }
+                    });
+
+                    defer.resolve(data);
+
+                }, function(data) {
+                    options[0] = '(error loading options)';
+                    defer.reject();
+                });
+                return defer.promise;
+            },
+            //
+            parseOption: function(option, attrs, config) {
+                var parsedOption = {
+                    id: option[config.id],
+                    repr: option[config.nameOpts.source]
+                };
+
+                if (config.nameFromFormat) {
+                    parsedOption.repr = formatString(config.nameOpts.source, option);
+                }
+
+                if (attrs.multiple) {
+                    // For multiple field always get id of the object
+                    parsedOption.id = option.id;
+                }
+
+                return parsedOption;
+            },
+            //
+            getOptions: function(raw_options, options, attrs, config, extendCurrentOptions) {
+                angular.forEach(raw_options, function (option) {
+                    var parsedOption = remoteService.parseOption(option, attrs, config);
+
+                    if (extendCurrentOptions) {
+                        if (remoteService.excludeValue !== parsedOption.id) {
+                            options.push(parsedOption);
+                        }
+                    } else {
+                        options.push(parsedOption);
+                    }
+                });
+            }
+        };
+
+        return remoteService;
+    }])
+    //
+    .directive('selectInfinity', ['$parse', '$timeout', function($parse, $timeout) {
+        function height(elem) {
+            elem = elem[0] || elem;
+            if (isNaN(elem.offsetHeight)) {
+                return elem.document.documentElement.clientHeight;
+            } else {
+                return elem.offsetHeight;
+            }
+        }
+
+        function offsetTop(elem) {
+            if (!elem[0].getBoundingClientRect || elem.css('none')) {
+                return;
+            }
+            return elem[0].getBoundingClientRect().top + pageYOffset(elem);
+        }
+
+        function pageYOffset(elem) {
+            elem = elem[0] || elem;
+            if (isNaN(window.pageYOffset)) {
+                return elem.document.documentElement.scrollTop;
+            } else {
+                return elem.ownerDocument.defaultView.pageYOffset;
+            }
+        }
+
+        return {
+            link: function(scope, elem, attrs) {
+                var container = elem,
+                    scrollDistance = 0,
+                    removeThrottle;
+
+                function tryToSetupInfinityScroll() {
+                    var rows = elem.querySelectorAll('.ui-select-choices-row');
+
+                    if (rows.length === 0) {
+                        return false;
+                    }
+
+                    var lastChoice = angular.element(rows[rows.length - 1]);
+                    container = angular.element(elem.querySelectorAll('.ui-select-choices'));
+
+                    var handler = function() {
+                        var containerBottom = height(container),
+                            containerTopOffset = 0,
+                            elementBottom;
+
+                        if (offsetTop(container) !== void 0) {
+                            containerTopOffset = offsetTop(container);
+                        }
+
+                        elementBottom = offsetTop(lastChoice) - containerTopOffset + height(lastChoice);
+                        var remaining = elementBottom - containerBottom,
+                            shouldScroll = remaining <= height(container) * scrollDistance + 1;
+
+                        if (shouldScroll) {
+                            scope.$apply(function() {
+                                $parse(attrs.selectInfinity)(scope);
+                            });
+                        }
+                    };
+
+                    require(['lodash'], function(_) {
+                        // Executes 500ms after last call of the debounced function.
+                        var debounced = _.debounce(handler, 500);
+                        container.on('scroll', debounced);
+
+                        scope.$on('$destroy', function() {
+                            debounced();
+                        });
+                    });
+
+                    return true;
+                }
+
+                var unbindWatcher = scope.$watch('$select.open', function(newItems) {
+                    if (!newItems) {
+                        return;
+                    }
+
+                    $timeout(function() {
+                        if (tryToSetupInfinityScroll()) {
+                            unbindWatcher();
+                        }
+                    });
+                });
+            }
+        };
+    }])
+    //
+    .directive('remoteOptions', ['$lux', '$q', 'remoteService', function ($lux, $q, remoteService) {
+
+        /*
+         * Set up initial values used in query strings
+         * @param config {object} query strings and settings
+         */
+        function setupInitialQuery(config) {
+            config.params.limit = config.queryInitial.limit;
+            config.params.offset = config.queryInitial.offset;
+            delete config.params[config.id];
+        }
 
         function fill(api, target, scope, attrs) {
 
-            var id = attrs.remoteOptionsId || 'id',
-                nameOpts = attrs.remoteOptionsValue ? JSON.parse(attrs.remoteOptionsValue) : {
+            var config = {
+                id: attrs.remoteOptionsId || 'id',
+                nameOpts: attrs.remoteOptionsValue ? JSON.parse(attrs.remoteOptionsValue) : {
                     type: 'field',
                     source: 'id'
                 },
-                nameFromFormat = nameOpts.type === 'formatString',
-                initialValue = {},
-                params = JSON.parse(attrs.remoteOptionsParams || '{}'),
-                options = [];
+                initialValue: {},
+                params: JSON.parse(attrs.remoteOptionsParams || '{}'),
+                optionsTotal: 0,
+                queryInitial: {
+                    limit: 25,
+                    offset: 0
+                }
+            },
+            loadingItem = {
+                id: '',
+                repr: 'Loading...'
+            };
 
-            scope[target.name] = options;
+            config.nameFromFormat = config.nameOpts.type === 'formatString';
 
-            initialValue.id = '';
-            initialValue.name = 'Loading...';
-
-            options.push(initialValue);
+            setupInitialQuery(config);
 
             // Set empty value if field was not filled
-            if (scope[scope.formModelName][attrs.name] === undefined)
+            if (scope[scope.formModelName][attrs.name] === undefined) {
                 scope[scope.formModelName][attrs.name] = '';
+            }
 
-            api.get(null, params).then(function (data) {
-                if (attrs.multiple) {
-                    options.splice(0, 1);
+            remoteService.query(api, target, scope, attrs, config, null, false);
+
+             // Custom filter function
+            scope.remoteSearch = function($select, isMultipleField) {
+                if ($select.search !== '') {
+                    var searchValue = $select.search;
+                    setupInitialQuery(config);
+
+                    // For multiple fields use name as a lookup key
+                    if (isMultipleField === true)
+                        config.id = 'name';
+
+                    remoteService.query(api, target, scope, attrs, config, searchValue, false);
                 } else {
-                    options[0].name = 'Please select...';
+                    // Reset options
+                    scope.getInitialOptions();
                 }
-                angular.forEach(data.data.result, function (val) {
-                    var name;
-                    if (nameFromFormat) {
-                        name = formatString(nameOpts.source, val);
-                    } else {
-                        name = val[nameOpts.source];
-                    }
-                    options.push({
-                        id: val[id],
-                        name: name
+            };
+
+            scope.getInitialOptions = function() {
+                // Set initial params
+                setupInitialQuery(config);
+                // Reset info about chunk
+                scope.hasNextChunk = true;
+                // Get data
+                remoteService.query(api, target, scope, attrs, config, null, false);
+            };
+
+            // Handles selection on multiple select
+            scope.multipleSelect = function($select, value) {
+                var selected = scope[scope.formModelName][attrs.name];
+                // If selected 'Please select...' then remove it
+                if (value === '') {
+                    selected.pop();
+                    $select.selected.pop();
+                }
+            };
+
+            function getInfinityScrollChunk(config) {
+                return remoteService.query(api, target, scope, attrs, config, null, true);
+            }
+
+            function addLoadingStateItem() {
+                var options = scope[target.name],
+                    lastIndex = options.length - 1;
+                options.splice(lastIndex, 0, loadingItem);
+            }
+
+            function removeLoadingStateItem() {
+                var options = scope[target.name],
+                    index = options.indexOf(loadingItem);
+                if (index < 0) {
+                    return;
+                }
+                options.splice(index, 1);
+            }
+
+            // Handler for infinity scroll
+            scope.loadMore = function() {
+                if (scope.isRequestMoreItems || !scope.hasNextChunk)
+                    return $q.reject();
+
+                addLoadingStateItem();
+
+                scope.isRequestMoreItems = true;
+                config.params.offset += config.params.limit;
+                return getInfinityScrollChunk(config)
+                    .then(function(data) {
+                        var options = scope[target.name];
+                        if (options.length > config.optionsTotal)
+                            scope.hasNextChunk = false;
+                    }, function(err) {
+                        return $q.reject(err);
+                    })
+                    .finally(function() {
+                        removeLoadingStateItem();
+                        scope.isRequestMoreItems = false;
                     });
-                });
-            }, function (data) {
-                /** TODO: add error alert */
-                options[0] = '(error loading options)';
-            });
+                };
         }
 
         function link(scope, element, attrs) {
-
             if (attrs.remoteOptions) {
                 var target = JSON.parse(attrs.remoteOptions),
                     api = $lux.api(target);
@@ -3448,7 +3745,7 @@ angular.module('lux.form.utils', ['lux.services'])
             link: link
         };
     }])
-
+    //
     .directive('selectOnClick', function () {
         return {
             restrict: 'A',
@@ -4034,7 +4331,7 @@ function gridDataProviderWebsocketFactory ($scope) {
                     }
                 },
 
-                // If value is JSON format then return repr or id attribute
+                // If value is in JSON format then return repr or id attribute
                 string: function (column, col, uiGridConstants, gridDefaults) {
                     column.cellTemplate = gridDefaults.wrapCell('{{grid.appScope.getStringOrJSON(COL_FIELD)}}');
                 }
