@@ -1,6 +1,6 @@
 //      Lux Library - v0.3.0
 
-//      Compiled 2015-11-24.
+//      Compiled 2015-11-25.
 //      Copyright (c) 2015 - Luca Sbardella
 //      Licensed BSD.
 //      For all details and documentation:
@@ -3403,12 +3403,12 @@ angular.module('lux.form.utils', ['lux.services'])
         var remoteService = {
 
             /*
-             * Value from not first pagination page, that need to be excluded to get rid duplicate items
+             * Value from not first pagination page, that need to be excluded to get rid duplicate items.
             */
             excludeValue: '',
 
             /**
-             * Called to get remote options from the API
+             * Called to get remote options from the API.
              *
              * @param api
              * @param target
@@ -3416,7 +3416,7 @@ angular.module('lux.form.utils', ['lux.services'])
              * @param attrs
              * @param config {object} - parameters passed to query string in request
              * @param searchValue {string} - value of the search was were typed in input field
-             * @param extendCurrentOptions {boolean} - flag that indicates whether to add new options to existing options
+             * @param extendCurrentOptions {boolean} - flag that indicates if add new options to existing options
              * @returns {promise}
              */
             query: function(api, target, scope, attrs, config, searchValue, extendCurrentOptions) {
@@ -3465,7 +3465,7 @@ angular.module('lux.form.utils', ['lux.services'])
                                 api.get(null, config.params).then(function(data) {
                                     if (data.data.result.length > 0) {
                                         var option = remoteService.parseOption(data.data.result[0], attrs, config);
-                                        // Adds an option to the third place from the end
+                                        // Add an option to the third place from the end
                                         options.splice(options.length-3, 0, option);
                                         // Update selected value in list
                                         scope.$select.selected = option;
@@ -3483,7 +3483,15 @@ angular.module('lux.form.utils', ['lux.services'])
                 });
                 return defer.promise;
             },
-            //
+
+            /**
+             * Parses single option to the correct format.
+             *
+             * @param option {object} - id and repr attributes
+             * @param attrs {object}
+             * @param config {object} - parameters passed to query string in request
+             * @returns {object}
+             */
             parseOption: function(option, attrs, config) {
                 var parsedOption = {
                     id: option[config.id],
@@ -3501,7 +3509,16 @@ angular.module('lux.form.utils', ['lux.services'])
 
                 return parsedOption;
             },
-            //
+
+            /**
+             * Returns all parsed options.
+             *
+             * @param raw_options {object} - options fetched from the API
+             * @param options {object} - current `options` from select
+             * @param attrs {object}
+             * @param config {object} - parameters passed to query string in request
+             * @param extendCurrentOptions {boolean} - indicates whether to extend current `options` using `raw_options` from the API
+             */
             getOptions: function(raw_options, options, attrs, config, extendCurrentOptions) {
                 angular.forEach(raw_options, function (option) {
                     var parsedOption = remoteService.parseOption(option, attrs, config);
@@ -3519,8 +3536,16 @@ angular.module('lux.form.utils', ['lux.services'])
 
         return remoteService;
     }])
-    //
+    /**
+     * Extension of ui-select to support infinite list of items.
+     */
     .directive('selectInfinity', ['$parse', '$timeout', function($parse, $timeout) {
+        /**
+         * Returns the height of the given element
+         *
+         * @param elem
+         * @returns {integer} - height of the element
+         */
         function height(elem) {
             elem = elem[0] || elem;
             if (isNaN(elem.offsetHeight)) {
@@ -3530,6 +3555,12 @@ angular.module('lux.form.utils', ['lux.services'])
             }
         }
 
+        /**
+         * Returns the distance from the top of the closest relatively positioned parent element.
+         *
+         * @param elem
+         * @returns {integer}
+         */
         function offsetTop(elem) {
             if (!elem[0].getBoundingClientRect || elem.css('none')) {
                 return;
@@ -3537,6 +3568,12 @@ angular.module('lux.form.utils', ['lux.services'])
             return elem[0].getBoundingClientRect().top + pageYOffset(elem);
         }
 
+        /**
+         * Returns the distance, in pixels, that a document has scrolled vertically.
+         *
+         * @param elem
+         * @returns {integer}
+         */
         function pageYOffset(elem) {
             elem = elem[0] || elem;
             if (isNaN(window.pageYOffset)) {
@@ -3552,6 +3589,9 @@ angular.module('lux.form.utils', ['lux.services'])
                     scrollDistance = 0,
                     removeThrottle;
 
+                /**
+                 * Sets infinite scroll on `.ui-select-choices` element.
+                 */
                 function tryToSetupInfinityScroll() {
                     var rows = elem.querySelectorAll('.ui-select-choices-row');
 
@@ -3582,6 +3622,7 @@ angular.module('lux.form.utils', ['lux.services'])
                         }
                     };
 
+                    // Sets debounce function for scroll handler
                     require(['lodash'], function(_) {
                         // Executes 500ms after last call of the debounced function.
                         var debounced = _.debounce(handler, 500);
@@ -3609,7 +3650,9 @@ angular.module('lux.form.utils', ['lux.services'])
             }
         };
     }])
-    //
+    /**
+     * Extension of select to get options from an external API.
+     */
     .directive('remoteOptions', ['$lux', '$q', 'remoteService', function ($lux, $q, remoteService) {
 
         /*
@@ -3622,6 +3665,14 @@ angular.module('lux.form.utils', ['lux.services'])
             delete config.params[config.id];
         }
 
+        /*
+         * Initializes remoteOptions directive.
+         *
+         * @param api {object} - instance of an external API
+         * @param target {object}
+         * @param scope
+         * @param attrs
+         */
         function fill(api, target, scope, attrs) {
 
             var config = {
@@ -3654,7 +3705,12 @@ angular.module('lux.form.utils', ['lux.services'])
 
             remoteService.query(api, target, scope, attrs, config, null, false);
 
-             // Custom filter function
+            /**
+             * Enables search from an external API.
+             *
+             * @param $select {object} - instance of ui-select
+             * @param isMultipleField {boolean} - indicates if it is multiple field
+             */
             scope.remoteSearch = function($select, isMultipleField) {
                 if ($select.search !== '') {
                     var searchValue = $select.search;
@@ -3671,6 +3727,9 @@ angular.module('lux.form.utils', ['lux.services'])
                 }
             };
 
+            /**
+             * Sets parameters and gets options (first of the pagination page).
+             */
             scope.getInitialOptions = function() {
                 // Set initial params
                 setupInitialQuery(config);
@@ -3680,7 +3739,12 @@ angular.module('lux.form.utils', ['lux.services'])
                 remoteService.query(api, target, scope, attrs, config, null, false);
             };
 
-            // Handles selection on multiple select
+            /**
+             * Handles selection on multiple select.
+             *
+             * @param $select {object} - instance of ui-select
+             * @param value {object} - value of the multiple field
+             */
             scope.multipleSelect = function($select, value) {
                 var selected = scope[scope.formModelName][attrs.name];
                 // If selected 'Please select...' then remove it
@@ -3690,16 +3754,29 @@ angular.module('lux.form.utils', ['lux.services'])
                 }
             };
 
+            /**
+             * Wraps query method of the removeService.
+             *
+             * @param config
+             * @returns {promise} - result of the query method
+             */
             function getInfinityScrollChunk(config) {
                 return remoteService.query(api, target, scope, attrs, config, null, true);
             }
 
+            /**
+             * Adds loading item, it is triggered when we are starting downloading the options.
+             */
             function addLoadingStateItem() {
                 var options = scope[target.name],
                     lastIndex = options.length - 1;
                 options.splice(lastIndex, 0, loadingItem);
             }
 
+            /**
+             * Removes loading item, it is triggered when finish retrieve elements
+             * from the specific pagination page.
+             */
             function removeLoadingStateItem() {
                 var options = scope[target.name],
                     index = options.indexOf(loadingItem);
@@ -3709,24 +3786,31 @@ angular.module('lux.form.utils', ['lux.services'])
                 options.splice(index, 1);
             }
 
-            // Handler for infinity scroll
+            /**
+             * Handler for infinity scroll.
+             */
             scope.loadMore = function() {
                 if (scope.isRequestMoreItems || !scope.hasNextChunk)
                     return $q.reject();
 
+                // Add loading indicator
                 addLoadingStateItem();
 
                 scope.isRequestMoreItems = true;
+                // Update offset value which is passed in query string of the request
                 config.params.offset += config.params.limit;
+                //
                 return getInfinityScrollChunk(config)
                     .then(function(data) {
                         var options = scope[target.name];
+                        // Check if we can load more options
                         if (options.length > config.optionsTotal)
                             scope.hasNextChunk = false;
                     }, function(err) {
                         return $q.reject(err);
                     })
                     .finally(function() {
+                        // Remove loading indicator
                         removeLoadingStateItem();
                         scope.isRequestMoreItems = false;
                     });
