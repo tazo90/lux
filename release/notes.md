@@ -20,4 +20,4 @@
 * Form date input fix [[#194](https://github.com/quantmind/lux/pull/194)]
 * Display relationship fields properly in grids [[#194](https://github.com/quantmind/lux/pull/196)]
 * Update angular-ui-select to version 0.13.2
-* Added support to ui-select to pull all data from an API (inifinite scroll) [[#158](https://github.com/quantmind/lux/issues/158)]
+* Added support to ui-select to pull all data from an API (lazily loading) [[#158](https://github.com/quantmind/lux/issues/158)]
