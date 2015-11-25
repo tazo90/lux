@@ -3402,9 +3402,9 @@ angular.module('lux.form.utils', ['lux.services'])
     .factory('remoteService', ['$lux', '$q', '$timeout', function($lux, $q, $timeout) {
         var remoteService = {
 
-            /*
-             * Value from not first pagination page, that need to be excluded to get rid duplicate items.
-            */
+            /**
+             * Value from non first pagination page, that need to be excluded to get rid duplicate items.
+             */
             excludeValue: '',
 
             /**
@@ -3423,6 +3423,7 @@ angular.module('lux.form.utils', ['lux.services'])
                 var defer = $q.defer(),
                     options = scope[target.name];
 
+                // If the query is searching for value
                 if (searchValue === null)
                     delete config.params[config.id];
                 else
@@ -3655,7 +3656,7 @@ angular.module('lux.form.utils', ['lux.services'])
      */
     .directive('remoteOptions', ['$lux', '$q', 'remoteService', function ($lux, $q, remoteService) {
 
-        /*
+        /**
          * Set up initial values used in query strings
          * @param config {object} query strings and settings
          */
@@ -3665,7 +3666,7 @@ angular.module('lux.form.utils', ['lux.services'])
             delete config.params[config.id];
         }
 
-        /*
+        /**
          * Initializes remoteOptions directive.
          *
          * @param api {object} - instance of an external API
