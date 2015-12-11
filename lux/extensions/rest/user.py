@@ -5,6 +5,7 @@ from pulsar.utils.pep import to_bytes
 from pulsar.apps.wsgi import Json
 from pulsar.utils.slugify import slugify
 
+from lux import HttpException
 from lux.forms import Form, ValidationError
 
 
@@ -12,22 +13,11 @@ __all__ = ['AuthenticationError', 'MessageMixin',
            'UserMixin', 'SessionMixin',
            'normalise_email', 'PasswordMixin',
            'logout', 'User', 'Session',
-           'check_username',
-           'NONE', 'CREATE', 'READ', 'UPDATE', 'DELETE', 'PERMISSION_LEVELS']
+           'check_username', 'PERMISSION_LEVELS']
 
 
 UNUSABLE_PASSWORD = '!'
-
-NONE = 0
-CREATE = 30     # C
-READ = 10       # R
-UPDATE = 20     # U
-DELETE = 40     # D
-PERMISSION_LEVELS = dict(NONE=NONE,
-                         CREATE=CREATE,
-                         READ=READ,
-                         UPDATE=UPDATE,
-                         DELETE=DELETE)
+PERMISSION_LEVELS = set(('read', 'update', 'create', 'delete'))
 
 
 class AuthenticationError(ValueError):
@@ -165,7 +155,7 @@ class PasswordMixin:
     def on_config(self, app):
         cfg = app.config
         self.encoding = cfg['ENCODING']
-        self.secret_key = cfg['SECRET_KEY'].encode()
+        self.secret_key = cfg['PASSWORD_SECRET_KEY'].encode()
         ckwargs = cfg['CRYPT_ALGORITHM']
         if not isinstance(ckwargs, dict):
             ckwargs = dict(module=ckwargs)
@@ -245,8 +235,8 @@ def login(request, login_form):
             else:
                 return auth_backend.inactive_user_login_response(request,
                                                                  user)
-        except AuthenticationError as e:
-            form.add_error_message(str(e))
+        except AuthenticationError as exc:
+            raise HttpException(str(exc), 422) from exc
 
     return Json(form.tojson()).http_response(request)
 
@@ -269,8 +259,9 @@ def normalise_email(email):
     Normalise the address by lowercasing the domain part of the email
     address.
     """
-    email_name, domain_part = email.strip().rsplit('@', 1)
-    email = '@'.join([email_name, domain_part.lower()])
+    if email:
+        email_name, domain_part = email.strip().rsplit('@', 1)
+        email = '@'.join([email_name, domain_part.lower()])
     return email
 
 

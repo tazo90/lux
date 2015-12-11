@@ -1,43 +1,43 @@
 {
+    "repository": {
+        "url": "https://github.com/quantmind/lux",
+        "type": "git"
+    },
+    "contributors": [],
+    "keywords": [],
+    "dependencies": {
+        "angular-jwt": ""
+    },
+    "name": "lux",
+    "devDependencies": {
+        "docco": "",
+        "grunt-contrib-copy": "",
+        "benchmark": "",
+        "grunt-contrib-watch": "",
+        "grunt-contrib-uglify": "",
+        "grunt-docco": "",
+        "grunt-contrib-concat": "",
+        "grunt-template-jasmine-istanbul": "",
+        "grunt-contrib-jshint": "",
+        "grunt-contrib-jasmine": "",
+        "grunt": "",
+        "grunt-html2js": ""
+    },
+    "description": "python web toolkit",
+    "title": "Lux Library",
+    "author": {
+        "email": "luca.sbardella@gmail.com",
+        "name": "Luca Sbardella"
+    },
+    "version": "0.4.0",
+    "scripts": {
+        "postinstall": "bower install",
+        "test": "grunt jasmine"
+    },
     "licenses": [
         {
             "type": "BSD"
         }
     ],
-    "repository": {
-        "type": "git",
-        "url": "https://github.com/quantmind/lux"
-    },
-    "homepage": "http://quantmind.github.io/lux",
-    "contributors": [],
-    "scripts": {
-        "postinstall": "bower install",
-        "test": "grunt jasmine"
-    },
-    "devDependencies": {
-        "grunt-docco": "",
-        "grunt": "",
-        "grunt-contrib-jasmine": "",
-        "grunt-contrib-uglify": "",
-        "grunt-html2js": "",
-        "grunt-contrib-copy": "",
-        "grunt-contrib-watch": "",
-        "docco": "",
-        "grunt-contrib-jshint": "",
-        "grunt-template-jasmine-istanbul": "",
-        "benchmark": "",
-        "grunt-contrib-concat": ""
-    },
-    "keywords": [],
-    "description": "python web toolkit",
-    "author": {
-        "email": "luca.sbardella@gmail.com",
-        "name": "Luca Sbardella"
-    },
-    "version": "0.3.0",
-    "title": "Lux Library",
-    "dependencies": {
-        "angular-jwt": ""
-    },
-    "name": "lux"
+    "homepage": "http://quantmind.github.io/lux"
 }

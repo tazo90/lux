@@ -1,6 +1,6 @@
-//      Lux Library - v0.3.0
+//      Lux Library - v0.4.0
 
-//      Compiled 2015-11-25.
+//      Compiled 2015-12-11.
 //      Copyright (c) 2015 - Luca Sbardella
 //      Licensed BSD.
 //      For all details and documentation:
@@ -29,7 +29,6 @@ function(angular, root) {
     "use strict";
 
     var lux = root.lux || {};
-    lux.version = '0.1.0';
 
     var forEach = angular.forEach,
         extend = angular.extend,
@@ -45,7 +44,12 @@ function(angular, root) {
             hashPrefix: '',
             ngModules: []
         };
+
+    if (isString(lux))
+        lux = {context: urlBase64Decode(lux)};
+    root.lux = lux;
     //
+    lux.version = '0.1.0';
     lux.$ = $;
     lux.angular = angular;
     lux.forEach = angular.forEach;
@@ -356,8 +360,34 @@ function(angular, root) {
     },
     //
     //  Capitalize the first letter of string
-    capitalize = function(str) {
+    capitalize = function (str) {
         return str.charAt(0).toUpperCase() + str.slice(1);
+    },
+
+    /**
+     * Obtain a JSON object from a string (if available) otherwise null
+     *
+     * @param {string}
+     * @returns {object} json object
+     */
+    getJsonOrNone = lux.getJsonOrNone = function (str) {
+        try {
+            return JSON.parse(str);
+        } catch(error) {
+            return null;
+        }
+    },
+
+    /**
+     * Checks if a JSON value can be stringify
+     *
+     * @param {value} json value
+     * @returns {boolean}
+     */
+    isJsonStringify = lux.isJsonStringify = function (value) {
+        if (isObject(value) || isArray(value) || isString(value))
+            return true;
+        return false;
     };
 
     lux.messages.no_api = function (url) {
@@ -955,19 +985,29 @@ function(angular, root) {
                         forEach(data, function (value, key) {
                             // TODO: do we need a callback for JSON fields?
                             // or shall we leave it here?
-                            if (formScope[formScope.formModelName + 'Type'][key] === 'textarea' && isObject(value)) {
+
+                            var modelType = formScope[formScope.formModelName + 'Type'];
+                            var jsonArrayKey = key.split('[]')[0];
+
+                            // Stringify json only if has json mode enabled
+                            if (modelType[jsonArrayKey] === 'json' && isJsonStringify(value)) {
+
+                                // Get rid of the brackets from the json array field
+                                if (isArray(value)) {
+                                    key = jsonArrayKey;
+                                }
+
                                 value = JSON.stringify(value, null, 4);
                             }
 
                             if (isArray(value)) {
                                 model[key] = [];
-
                                 forEach(value, function(item) {
-                                    model[key].push(item.id);
+                                    model[key].push(item.id || item);
                                 });
-                            }
-                            else
+                            } else {
                                 model[key] = value.id || value;
+                            }
                         });
                     });
                 }
@@ -1327,29 +1367,8 @@ function(angular, root) {
             throw new Error('JWT must have 3 parts');
         }
 
-        var decoded = urlBase64Decode(parts[1]);
-        if (!decoded) {
-            throw new Error('Cannot decode the token');
-        }
-
-        return JSON.parse(decoded);
+        return lux.urlBase64DecodeToJSON(parts[1]);
     };
-
-
-    function urlBase64Decode (str) {
-        var output = str.replace('-', '+').replace('_', '/');
-        switch (output.length % 4) {
-
-            case 0: { break; }
-        case 2: { output += '=='; break; }
-        case 3: { output += '='; break; }
-        default: {
-                throw 'Illegal base64url string!';
-            }
-        }
-        //polifyll https://github.com/davidchambers/Base64.js
-        return decodeURIComponent(escape(window.atob(output)));
-    }
 
  //
  // Websocket handler for RPC and pub/sub messages
@@ -2347,6 +2366,26 @@ angular.module('lux.cms.core', [])
                 //
                 // Create a form element
                 createElement: function (driver, scope) {
+
+                    /**
+                     * Builds infomation about type and text mode used in the field.
+                     * These informations are used in `api.formReady` method.
+
+                     * @param formModelName {string} - name of the model
+                     * @param field {object}
+                     * @param fieldType {string} - type of the field
+                     */
+                    function buildFieldInfo (formModelName, field, fieldType) {
+                        var typeConfig = formModelName + 'Type';
+                        var textMode = getJsonOrNone(field.text_edit);
+                        scope[typeConfig] = scope[typeConfig] || {};
+
+                        if (textMode !== null)
+                            scope[typeConfig][field.name] = textMode.mode || '';
+                        else
+                            scope[typeConfig][field.name] = fieldType;
+                    }
+
                     var self = this,
                         thisField = scope.field,
                         tc = thisField.type.split('.'),
@@ -2358,20 +2397,17 @@ angular.module('lux.cms.core', [])
                     scope.info = info;
 
                     if (info) {
-                        // Pick the renderer by checking `type`
-                        if (info.hasOwnProperty('type'))
+                        if (info.hasOwnProperty('type') && typeof this[info.type] === 'function')
+                            // Pick the renderer by checking `type`
                             fieldType = info.type;
-
-                        // If no element type, use the `element`
-                        if (!renderer)
+                        else
+                            // If no element type, use the `element`
                             fieldType = info.element;
                     }
 
                     renderer = this[fieldType];
 
-                    var typeConfig = scope.formModelName + 'Type';
-                    scope[typeConfig] = scope[typeConfig] || {};
-                    scope[typeConfig][thisField.name] = fieldType;
+                    buildFieldInfo(scope.formModelName, thisField, fieldType);
 
                     if (!renderer)
                         renderer = this.renderNotElements;
@@ -2876,7 +2912,8 @@ angular.module('lux.cms.core', [])
                 },
                 //
                 requiredErrorMessage: function (scope) {
-                    return scope.field.label + " is required";
+                    var msg = scope.field.required_error;
+                    return msg || scope.field.label + " is required";
                 },
                 //
                 // Return the function to handle form processing
@@ -3235,6 +3272,17 @@ angular.module('lux.form.handlers', ['lux.services'])
         };
 
         //
+        formHandlers.signUp = function (response, scope) {
+            var email = response.data.email;
+            if (email) {
+                var text = "We have sent an email to <strong>" + email + "</strong>. Please follow the instructions to confirm your email.";
+                $lux.messages.success(text);
+            }
+            else
+                $lux.messages.error("Something wrong, please contact the administrator");
+        };
+
+        //
         formHandlers.passwordChanged = function (response, scope) {
             if (response.data.success) {
                 var text = 'Password succesfully changed. You can now <a title="login" href="' + lux.context.LOGIN_URL + '">login</a> again.';
@@ -3356,7 +3404,8 @@ angular.module('lux.form.process', ['ngFileUpload'])
                 return;
             }
             //
-            promise.then(function (response) {
+            promise.then(
+                function (response) {
                     var data = response.data;
                     var hookName = scope.formAttrs.resultHandler;
                     var hook = hookName && $lux.formHandlers[hookName];
@@ -3377,22 +3426,22 @@ angular.module('lux.form.process', ['ngFileUpload'])
                     }
                 },
                 function (response) {
-                    var data = response.data || {},
-                        status = response.status,
-                        messages = data.errors,
-                        msg;
-                    if (!messages) {
-                        msg = data.message;
-                        if (!msg) {
-                            status = status || data.status || 501;
-                            msg = 'Response error (' + data.status + ')';
+                    var data = response.data || {};
+
+                    if (data.errors) {
+                        scope.addMessages(data.errors, 'error');
+                    } else {
+                        var message = data.message;
+                        if (!message) {
+                            var status = status || data.status || 501;
+                            message = 'Response error (' + status + ')';
                         }
-                        messages = [{message: msg}];
+                        $lux.messages.error(message);
                     }
-                    scope.addMessages(messages, 'error');
                 });
         };
     }]);
+
 /**
  * Created by Reupen on 02/06/2015.
  */
@@ -4342,36 +4391,36 @@ function gridDataProviderWebsocketFactory ($scope) {
                 'create': {
                     title: 'Add',
                     icon: 'fa fa-plus',
-                    // Handle CREATE permission type
-                    permissionType: 'CREATE'
+                    // Handle create permission type
+                    permissionType: 'create'
                 },
                 'delete': {
                     title: 'Delete',
                     icon: 'fa fa-trash',
-                    permissionType: 'DELETE'
+                    permissionType: 'delete'
                 },
                 'columnsVisibility': {
                     title: 'Columns visibility',
                     icon: 'fa fa-eye'
                 }
             },
-            // Permissions are used to enable/disable grid actions like (CREATE, UPDATE, DELETE).
+            // Permissions are used to enable/disable grid actions like (create, update, delete).
             //
             // To enable permission of given type on menu item we need to specify `permissionType`
-            // e.g. `permissionType: 'CREATE'` on 'create' item will show 'Add' button on the grid.
+            // e.g. `permissionType: 'create'` will show 'Add' button on the grid.
             // If the `permissionType` is not specified on item at `gridDefaults.gridMenu` then
             // this item doesn't handle permissions (is always visible).
             //
-            // We always expect the permissions object i.e. `permissions: {'CREATE': true, 'DELETE': false, 'UPDATE': true}`.
+            // We always expect the permissions object i.e. `permissions: {'create': true, 'delete': false, 'update': true}`.
             // If some of value is not specified then default is `False` (according to values from `gridDefaults.permissions`)
             //
             // We allow to configure permissions from:
             // * `metadata API` override the grid options
             // * `grid options`
             permissions: {
-                CREATE: false,
-                UPDATE: false,
-                DELETE: false
+                create: false,
+                update: false,
+                delete: false
             },
             modal: {
                 delete: {
@@ -4409,7 +4458,7 @@ function gridDataProviderWebsocketFactory ($scope) {
 
                 // Font-awesome icon by default
                 boolean: function (column, col, uiGridConstants, gridDefaults) {
-                    column.cellTemplate = gridDefaults.wrapCell('<i ng-class="grid.appScope.getBooleanFieldIcon(COL_FIELD)"></i>');
+                    column.cellTemplate = gridDefaults.wrapCell('<i ng-class="grid.appScope.getBooleanIconField(COL_FIELD)"></i>');
 
                     if (col.hasOwnProperty('filter')) {
                         column.filter = {
@@ -4421,7 +4470,12 @@ function gridDataProviderWebsocketFactory ($scope) {
 
                 // If value is in JSON format then return repr or id attribute
                 string: function (column, col, uiGridConstants, gridDefaults) {
-                    column.cellTemplate = gridDefaults.wrapCell('{{grid.appScope.getStringOrJSON(COL_FIELD)}}');
+                    column.cellTemplate = gridDefaults.wrapCell('{{grid.appScope.getStringOrJsonField(COL_FIELD)}}');
+                },
+
+                // Renders a link for the fields of url type
+                url: function (column, col, uiGridConstants, gridDefaults) {
+                    column.cellTemplate = gridDefaults.wrapCell('<a ng-href="{{COL_FIELD.url || COL_FIELD}}">{{COL_FIELD.repr || COL_FIELD}}</a>');
                 }
             },
             //
@@ -4442,6 +4496,7 @@ function gridDataProviderWebsocketFactory ($scope) {
 
                 angular.forEach(columns, function(col) {
                     column = {
+                        luxRemoteType: col.remoteType,
                         field: col.name,
                         displayName: col.displayName,
                         type: getColumnType(col.type),
@@ -4469,9 +4524,9 @@ function gridDataProviderWebsocketFactory ($scope) {
                     }
 
                     if (typeof column.field !== 'undefined' && column.field === metaFields.repr) {
-                        if (permissions.UPDATE) {
+                        if (permissions.update) {
                             // If there is an update permission then display link
-                            column.cellTemplate = gridDefaults.wrapCell('<a ng-href="{{grid.appScope.objectUrl(row.entity)}}">{{COL_FIELD}}</a>');
+                            column.cellTemplate = gridDefaults.wrapCell('<a ng-href="{{grid.appScope.getObjectIdField(row.entity)}}">{{COL_FIELD}}</a>');
                         }
                         // Set repr column as the first column
                         columnDefs.splice(0, 0, column);
@@ -4741,15 +4796,15 @@ function gridDataProviderWebsocketFactory ($scope) {
 
                 var reprPath = options.reprPath || $lux.window.location;
 
-                scope.objectUrl = function(entity) {
+                scope.getObjectIdField = function(entity) {
                     return reprPath + '/' + entity[scope.gridOptions.metaFields.id];
                 };
 
-                scope.getBooleanFieldIcon = function(COL_FIELD) {
+                scope.getBooleanIconField = function(COL_FIELD) {
                     return ((COL_FIELD) ? 'fa fa-check-circle text-success' : 'fa fa-check-circle text-danger');
                 };
 
-                scope.getStringOrJSON = function(COL_FIELD) {
+                scope.getStringOrJsonField = function(COL_FIELD) {
                     if (isObject(COL_FIELD)) {
                         return COL_FIELD.repr || COL_FIELD.id;
                     }
@@ -4837,7 +4892,7 @@ function gridDataProviderWebsocketFactory ($scope) {
                                 //
                                 // Filtering
                                 scope.gridApi.core.on.filterChanged(scope, _.debounce(function () {
-                                    var grid = this.grid;
+                                    var grid = this.grid, operator;
                                     scope.gridFilters = {};
 
                                     // Add filters
@@ -4846,8 +4901,14 @@ function gridDataProviderWebsocketFactory ($scope) {
                                         if (value.filter.type === 'select')
                                             scope.clearData();
 
-                                        if (value.filters[0].term)
-                                            scope.gridFilters[value.colDef.name] = value.filters[0].term;
+                                        if (value.filters[0].term) {
+                                            if (value.colDef.luxRemoteType === 'str') {
+                                                operator = 'search';
+                                            } else {
+                                                operator = 'eq';
+                                            }
+                                            scope.gridFilters[value.colDef.name + ':' + operator] = value.filters[0].term;
+                                        }
                                     });
 
                                     // Get results
@@ -5415,10 +5476,37 @@ function gridDataProviderWebsocketFactory ($scope) {
                     }
                 };
 
+                // recursively loops through arrays to
+                // find url match
+                function exploreSubmenus(array) {
+                    for (var i=0; i < array.length; i++) {
+                        if (array[i].href === $location.path()) {
+                            return true;
+                        } else if (array[i].subitems && array[i].subitems.length > 0) {
+                            if (exploreSubmenus(array[i].subitems)) return true;
+                        }
+                    }
+                }
+
+                scope.activeSubmenu = function(url) {
+                    var active = false;
+
+                    if (url.href && url.href === '#' && url.subitems.length > 0) {
+                        active = exploreSubmenus(url.subitems);
+                    } else {
+                        active = false;
+                    }
+                    return active;
+                };
+
                 // Check if a url is active
                 scope.activeLink = function (url) {
                     var loc;
                     if (url)
+                        // Check if any submenus/sublinks are active
+                        if (url.subitems && url.subitems.length > 0) {
+                            if (exploreSubmenus(url.subitems)) return true;
+                        }
                         url = typeof(url) === 'string' ? url : url.href || url.url;
                     if (!url) return;
                     if (isAbsolute.test(url))
@@ -6602,7 +6690,7 @@ angular.module("nav/templates/sidebar.tpl.html", []).run(["$templateCache", func
     "            </div>\n" +
     "            <div class=\"pull-left info\">\n" +
     "                <p>{{ sidebar.infoText }}</p>\n" +
-    "                <a href=\"#\">{{sidebar.user.name}}</a>\n" +
+    "                <a ng-attr-href=\"{{sidebar.user.username ? '/' + sidebar.user.username : '#'}}\">{{sidebar.user.name}}</a>\n" +
     "            </div>\n" +
     "        </div>\n" +
     "    </div>\n" +
@@ -6614,7 +6702,7 @@ angular.module("nav/templates/sidebar.tpl.html", []).run(["$templateCache", func
     "        ng-class=\"{active:activeLink(link)}\" ng-include=\"'subnav'\"></li>\n" +
     "    </ul>\n" +
     "</aside>\n" +
-    "<div class=\"sidebar-page\" ng-click=\"closeSideBar()\" full-page>\n" +
+    "<div class=\"sidebar-page clearfix\" ng-click=\"closeSideBar()\" full-page>\n" +
     "    <div class=\"content-wrapper\"></div>\n" +
     "    <div class=\"overlay\"></div>\n" +
     "</div>\n" +
@@ -6625,11 +6713,12 @@ angular.module("nav/templates/sidebar.tpl.html", []).run(["$templateCache", func
     "        <span>{{link.name}}</span>\n" +
     "        <i ng-if=\"link.subitems\" class=\"fa fa-angle-left pull-right\"></i>\n" +
     "    </a>\n" +
-    "    <ul class=\"treeview-menu\" ng-class=\"link.class\" ng-if=\"link.subitems\">\n" +
+    "    <ul class=\"treeview-menu\" ng-class=\"{active:activeSubmenu(link)}\" ng-if=\"link.subitems\">\n" +
     "        <li ng-repeat=\"link in link.subitems\" ng-class=\"{active:activeLink(link)}\" ng-include=\"'subnav'\">\n" +
     "        </li>\n" +
     "    </ul>\n" +
-    "</script>");
+    "</script>\n" +
+    "");
 }]);
 
 angular.module('templates-page', ['page/breadcrumbs.tpl.html']);

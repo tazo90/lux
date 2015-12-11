@@ -1,8 +1,6 @@
 from urllib.parse import urljoin
 from datetime import datetime, timedelta
 
-from pulsar.apps.wsgi import Json
-
 from lux import Parameter
 from lux.extensions.rest import AuthenticationError, website_url
 
@@ -29,15 +27,17 @@ class RegistrationMixin:
         return datetime.now() + timedelta(days=days)
 
     def signup_response(self, request, user):
-        '''handle the response to a signup request
+        '''handle the response to a signup request.
+        Return the user email if successful
         '''
         auth_backend = request.cache.auth_backend
         auth_key = auth_backend.create_auth_key(request, user)
-        if auth_key:
-            email = self.send_email_confirmation(request, user, auth_key)
-            request.response.status_code = 201
-            data = dict(email=email, registration=auth_key)
-            return Json(data).http_response(request)
+        if not auth_key:
+            raise AuthenticationError("Cannot create authentication key")
+        if not user.email:
+            raise AuthenticationError("Cannot create authentication key, "
+                                      "no email")
+        return self.send_email_confirmation(request, user, auth_key)
 
     def password_recovery(self, request, email):
         '''Recovery password email
@@ -60,12 +60,12 @@ class RegistrationMixin:
         '''Handle a user not yet active'''
         cfg = request.config
         url = '%s/confirmation/%s' % (cfg['REGISTER_URL'], user.username)
-        session = request.cache.session
         context = {'email': user.email,
                    'email_from': cfg['DEFAULT_FROM_EMAIL'],
                    'confirmation_url': url}
-        message = request.app.render_template('inactive.txt', context)
-        session.warning(message)
+        message = request.app.render_template('registration/inactive_user.txt',
+                                              context)
+        raise AuthenticationError(message)
 
     def send_email_confirmation(self, request, user, auth_key, ctx=None,
                                 email_subject=None, email_message=None,
@@ -76,9 +76,11 @@ class RegistrationMixin:
         app = request.app
         cfg = app.config
         site = website_url(request)
+        reg_url = urljoin(site, cfg['REGISTER_URL'])
+        psw_url = urljoin(site, cfg['RESET_PASSWORD_URL'])
         ctx = {'auth_key': auth_key,
-               'register_url': urljoin(site, cfg['REGISTER_URL'], auth_key),
-               'reset_password_url': cfg['RESET_PASSWORD_URL'],
+               'register_url': reg_url,
+               'reset_password_url': psw_url,
                'expiration_days': cfg['ACCOUNT_ACTIVATION_DAYS'],
                'email': user.email,
                'site_uri': site}

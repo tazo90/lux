@@ -8,8 +8,7 @@
 This user actions are served under the "authorizations" url unless
 the model is overwritten.
 '''
-from pulsar import MethodNotAllowed, Http404
-from pulsar.apps.wsgi import Json
+from pulsar import MethodNotAllowed, Http404, HttpException
 
 from lux import route
 
@@ -22,9 +21,74 @@ from .forms import LoginForm, EmailForm, CreateUserForm, ChangePasswordForm
 __all__ = ['Authorization']
 
 
+class HttpGone(HttpException):
+    status = 410
+
+
 def action(f):
     f.is_action = True
     return f
+
+
+class SignUpMixin:
+    """Add endpoints for signup and signup confirmation
+    """
+    create_user_form = CreateUserForm
+
+    @action
+    def signup(self, request):
+        '''Handle signup post data
+
+        If :attr:`.create_user_form` form is None, raise a 404 error.
+
+        A succesful response is returned by the backend
+        :meth:`.signup_response` method.
+        '''
+        if not self.create_user_form:
+            raise Http404
+
+        user = request.cache.user
+        if user.is_authenticated():
+            raise MethodNotAllowed
+
+        form = self.create_user_form(request, data=request.body_data())
+
+        if form.is_valid():
+            data = form.cleaned_data
+            auth_backend = request.cache.auth_backend
+            try:
+                user = auth_backend.create_user(request, **data)
+                email = auth_backend.signup_response(request, user)
+                request.response.status_code = 201
+                data = dict(email=email)
+            except AuthenticationError as e:
+                form.add_error_message(str(e))
+                data = form.tojson()
+        else:
+            data = form.tojson()
+        return self.json(request, data)
+
+    @route('/signup/<key>', method=('post', 'options'))
+    def signup_confirmation(self, request):
+        if not self.create_user_form:
+            raise Http404
+
+        if request.method == 'OPTIONS':
+            request.app.fire('on_preflight', request, methods=['POST'])
+            return request.response
+
+        key = request.urlargs['key']
+        backend = request.cache.auth_backend
+        try:
+            user = backend.get_user(request, auth_key=key)
+            if user and backend.confirm_auth_key(request, key, confirm=True):
+                data = dict(message='Successfully confirmed registration',
+                            success=True)
+            else:
+                raise HttpGone('The link is no longer valid')
+        except AuthenticationError:
+            raise Http404
+        return self.json(request, data)
 
 
 class ResetPasswordMixin:
@@ -47,7 +111,9 @@ class ResetPasswordMixin:
             except AuthenticationError as e:
                 form.add_error_message(str(e))
                 result = form.tojson()
-        return Json(result).http_response(request)
+        else:
+            result = form.tojson()
+        return self.json(request, result)
 
     @route('reset-password/<key>', method=('post', 'options'))
     def reset(self, request):
@@ -76,15 +142,14 @@ class ResetPasswordMixin:
                 auth.confirm_auth_key(request, key)
         else:
             result = form.tojson()
-        return Json(result).http_response(request)
+        return self.json(request, result)
 
 
-class Authorization(RestRouter, ResetPasswordMixin):
+class Authorization(RestRouter, SignUpMixin, ResetPasswordMixin):
     '''Authentication views.
     '''
     _model = RestModel('authorization')
     login_form = LoginForm
-    create_user_form = CreateUserForm
     change_password_form = ChangePasswordForm
     request_reset_password_form = EmailForm
 
@@ -114,34 +179,6 @@ class Authorization(RestRouter, ResetPasswordMixin):
         return method(request)
 
     @action
-    def signup(self, request):
-        '''Handle signup post data
-
-        If :attr:`.create_user_form` form is None, raise a 404 error.
-
-        A succesful response is returned by the backend
-        :meth:`.signup_response` method.
-        '''
-        if not self.create_user_form:
-            raise Http404
-
-        user = request.cache.user
-        if user.is_authenticated():
-            raise MethodNotAllowed
-
-        form = self.create_user_form(request, data=request.body_data())
-
-        if form.is_valid():
-            data = form.cleaned_data
-            auth_backend = request.cache.auth_backend
-            try:
-                user = auth_backend.create_user(request, **data)
-                return auth_backend.signup_response(request, user)
-            except AuthenticationError as e:
-                form.add_error_message(str(e))
-        return Json(form.tojson()).http_response(request)
-
-    @action
     def change_password(self, request):
         '''Change user password
         '''
@@ -164,4 +201,4 @@ class Authorization(RestRouter, ResetPasswordMixin):
                       'message': 'password changed'}
         else:
             result = form.tojson()
-        return Json(result).http_response(request)
+        return self.json(request, result)

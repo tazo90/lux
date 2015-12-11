@@ -56,36 +56,36 @@
                 'create': {
                     title: 'Add',
                     icon: 'fa fa-plus',
-                    // Handle CREATE permission type
-                    permissionType: 'CREATE'
+                    // Handle create permission type
+                    permissionType: 'create'
                 },
                 'delete': {
                     title: 'Delete',
                     icon: 'fa fa-trash',
-                    permissionType: 'DELETE'
+                    permissionType: 'delete'
                 },
                 'columnsVisibility': {
                     title: 'Columns visibility',
                     icon: 'fa fa-eye'
                 }
             },
-            // Permissions are used to enable/disable grid actions like (CREATE, UPDATE, DELETE).
+            // Permissions are used to enable/disable grid actions like (create, update, delete).
             //
             // To enable permission of given type on menu item we need to specify `permissionType`
-            // e.g. `permissionType: 'CREATE'` on 'create' item will show 'Add' button on the grid.
+            // e.g. `permissionType: 'create'` will show 'Add' button on the grid.
             // If the `permissionType` is not specified on item at `gridDefaults.gridMenu` then
             // this item doesn't handle permissions (is always visible).
             //
-            // We always expect the permissions object i.e. `permissions: {'CREATE': true, 'DELETE': false, 'UPDATE': true}`.
+            // We always expect the permissions object i.e. `permissions: {'create': true, 'delete': false, 'update': true}`.
             // If some of value is not specified then default is `False` (according to values from `gridDefaults.permissions`)
             //
             // We allow to configure permissions from:
             // * `metadata API` override the grid options
             // * `grid options`
             permissions: {
-                CREATE: false,
-                UPDATE: false,
-                DELETE: false
+                create: false,
+                update: false,
+                delete: false
             },
             modal: {
                 delete: {
@@ -123,7 +123,7 @@
 
                 // Font-awesome icon by default
                 boolean: function (column, col, uiGridConstants, gridDefaults) {
-                    column.cellTemplate = gridDefaults.wrapCell('<i ng-class="grid.appScope.getBooleanFieldIcon(COL_FIELD)"></i>');
+                    column.cellTemplate = gridDefaults.wrapCell('<i ng-class="grid.appScope.getBooleanIconField(COL_FIELD)"></i>');
 
                     if (col.hasOwnProperty('filter')) {
                         column.filter = {
@@ -135,7 +135,12 @@
 
                 // If value is in JSON format then return repr or id attribute
                 string: function (column, col, uiGridConstants, gridDefaults) {
-                    column.cellTemplate = gridDefaults.wrapCell('{{grid.appScope.getStringOrJSON(COL_FIELD)}}');
+                    column.cellTemplate = gridDefaults.wrapCell('{{grid.appScope.getStringOrJsonField(COL_FIELD)}}');
+                },
+
+                // Renders a link for the fields of url type
+                url: function (column, col, uiGridConstants, gridDefaults) {
+                    column.cellTemplate = gridDefaults.wrapCell('<a ng-href="{{COL_FIELD.url || COL_FIELD}}">{{COL_FIELD.repr || COL_FIELD}}</a>');
                 }
             },
             //
@@ -156,6 +161,7 @@
 
                 angular.forEach(columns, function(col) {
                     column = {
+                        luxRemoteType: col.remoteType,
                         field: col.name,
                         displayName: col.displayName,
                         type: getColumnType(col.type),
@@ -183,9 +189,9 @@
                     }
 
                     if (typeof column.field !== 'undefined' && column.field === metaFields.repr) {
-                        if (permissions.UPDATE) {
+                        if (permissions.update) {
                             // If there is an update permission then display link
-                            column.cellTemplate = gridDefaults.wrapCell('<a ng-href="{{grid.appScope.objectUrl(row.entity)}}">{{COL_FIELD}}</a>');
+                            column.cellTemplate = gridDefaults.wrapCell('<a ng-href="{{grid.appScope.getObjectIdField(row.entity)}}">{{COL_FIELD}}</a>');
                         }
                         // Set repr column as the first column
                         columnDefs.splice(0, 0, column);
@@ -455,15 +461,15 @@
 
                 var reprPath = options.reprPath || $lux.window.location;
 
-                scope.objectUrl = function(entity) {
+                scope.getObjectIdField = function(entity) {
                     return reprPath + '/' + entity[scope.gridOptions.metaFields.id];
                 };
 
-                scope.getBooleanFieldIcon = function(COL_FIELD) {
+                scope.getBooleanIconField = function(COL_FIELD) {
                     return ((COL_FIELD) ? 'fa fa-check-circle text-success' : 'fa fa-check-circle text-danger');
                 };
 
-                scope.getStringOrJSON = function(COL_FIELD) {
+                scope.getStringOrJsonField = function(COL_FIELD) {
                     if (isObject(COL_FIELD)) {
                         return COL_FIELD.repr || COL_FIELD.id;
                     }
@@ -551,7 +557,7 @@
                                 //
                                 // Filtering
                                 scope.gridApi.core.on.filterChanged(scope, _.debounce(function () {
-                                    var grid = this.grid;
+                                    var grid = this.grid, operator;
                                     scope.gridFilters = {};
 
                                     // Add filters
@@ -560,8 +566,14 @@
                                         if (value.filter.type === 'select')
                                             scope.clearData();
 
-                                        if (value.filters[0].term)
-                                            scope.gridFilters[value.colDef.name] = value.filters[0].term;
+                                        if (value.filters[0].term) {
+                                            if (value.colDef.luxRemoteType === 'str') {
+                                                operator = 'search';
+                                            } else {
+                                                operator = 'eq';
+                                            }
+                                            scope.gridFilters[value.colDef.name + ':' + operator] = value.filters[0].term;
+                                        }
                                     });
 
                                     // Get results

@@ -31,8 +31,11 @@ class TestEnum(Enum):
 class Extension(lux.Extension):
 
     def api_sections(self, app):
-        return [CRUDTask(), CRUDPerson(), UserCRUD(),
-                PermissionCRUD(), GroupCRUD()]
+        return [CRUDTask(),
+                CRUDPerson(),
+                UserCRUD(),
+                PermissionCRUD(),
+                GroupCRUD()]
 
 
 Model = odm.model_base('odmtest')
@@ -53,16 +56,17 @@ class Task(Model):
     created = Column(DateTime, default=datetime.utcnow)
     assigned_id = Column(Integer, ForeignKey('person.id'))
     enum_field = Column(ChoiceType(TestEnum), default=TestEnum.opt1)
+    desc = Column(String(250))
 
 
 def person_model():
-    return odm.RestModel('person', PersonForm, url='people')
+    return odm.RestModel('person', PersonForm, PersonForm, url='people')
 
 
 def task_model():
     '''Rest model for the task
     '''
-    model = odm.RestModel('task', TaskForm)
+    model = odm.RestModel('task', TaskForm, TaskForm)
     model.add_related_column('assigned', person_model, 'assigned_id')
     return model
 
@@ -74,6 +78,7 @@ class TaskForm(forms.Form):
                                      label='assigned',
                                      required=False)
     enum_field = forms.EnumField(enum_class=TestEnum, default=TestEnum.opt1)
+    desc = forms.CharField(required=False)
 
 
 class PersonForm(forms.Form):
@@ -103,6 +108,7 @@ class UserCRUD(odm.CRUD):
     '''Test custom CRUD view and RestModel
     '''
     _model = odm.RestModel('user',
+                           UserForm,
                            UserForm,
                            columns=('username', 'active', 'superuser'),
                            exclude=('password', 'permissions'))

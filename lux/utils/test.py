@@ -1,5 +1,6 @@
 '''Utilities for testing Lux applications
 '''
+import os
 import unittest
 import string
 import logging
@@ -59,6 +60,8 @@ def test_app(test, config_file=None, argv=None, **params):
     kwargs.update(params)
     if 'SECRET_KEY' not in kwargs:
         kwargs['SECRET_KEY'] = generate_secret()
+    if 'PASSWORD_SECRET_KEY' not in kwargs:
+        kwargs['PASSWORD_SECRET_KEY'] = generate_secret()
     config_file = config_file or test.config_file
     if argv is None:
         argv = []
@@ -72,6 +75,17 @@ def test_app(test, config_file=None, argv=None, **params):
     app.stdout = StringIO()
     app.stderr = StringIO()
     return app
+
+
+def get_params(*names):
+    cfg = {}
+    for name in names:
+        value = os.environ.get(name)
+        if value:
+            cfg[name] = value
+        else:
+            return
+    return cfg
 
 
 class TestClient:
@@ -171,11 +185,12 @@ class TestMixin:
         headers = response.get_headers()
         return dict(headers).get('Set-Cookie')
 
-    def bs(self, response, mode=None):
+    def bs(self, response, status_code=None, mode=None):
         '''Return a BeautifulSoup object from the ``response``
         '''
         from bs4 import BeautifulSoup
-        return BeautifulSoup(self.html(response))
+        return BeautifulSoup(self.html(response, status_code),
+                             'html.parser')
 
     def html(self, response, status_code=None):
         '''Get html/text content from response
@@ -184,7 +199,16 @@ class TestMixin:
             self.assertEqual(response.status_code, status_code)
         self.assertEqual(response.content_type,
                          'text/html; charset=utf-8')
-        return response.content[0].decode('utf-8')
+        return self._content(response).decode('utf-8')
+
+    def text(self, response, status_code=None):
+        '''Get JSON object from response
+        '''
+        if status_code:
+            self.assertEqual(response.status_code, status_code)
+        self.assertEqual(response.content_type,
+                         'text/plain; charset=utf-8')
+        return self._content(response).decode('utf-8')
 
     def json(self, response, status_code=None):
         '''Get JSON object from response
@@ -193,7 +217,7 @@ class TestMixin:
             self.assertEqual(response.status_code, status_code)
         self.assertEqual(response.content_type,
                          'application/json; charset=utf-8')
-        return json.loads(response.content[0].decode('utf-8'))
+        return json.loads(self._content(response).decode('utf-8'))
 
     def assertValidationError(self, response, field=None, text=None):
         '''Assert a Form validation error
@@ -203,14 +227,19 @@ class TestMixin:
             data = self.json(response)
         else:
             data = response
-        self.assertEqual(data['message'], 'validation error')
-        errors = data['errors']
-        self.assertTrue(errors)
         if field is not None:
+            errors = data['errors']
+            self.assertTrue(errors)
             data = dict(((d.get('field', ''), d['message']) for d in errors))
             self.assertTrue(field in data)
             if text:
                 self.assertEqual(data[field], text)
+        elif text:
+            self.assertEqual(data['message'], text)
+            self.assertTrue(data['error'])
+
+    def _content(self, response):
+        return b''.join(response.content)
 
 
 class TestCase(unittest.TestCase, TestMixin):

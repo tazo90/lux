@@ -1,9 +1,10 @@
-'''Base HTML views for authenticating users
+'''HTML views for authenticating users
 '''
 from pulsar import Http404, HttpRedirect
 from pulsar.apps.wsgi import route
 
 import lux
+from lux import raise_http_error
 from lux.forms import WebFormRouter, Layout, Fieldset, Submit
 
 from .user import AuthenticationError, login, logout
@@ -14,6 +15,8 @@ class Login(WebFormRouter):
     '''Adds login get ("text/html") and post handlers
     '''
     template = 'login.html'
+    response_content_types = ['text/html',
+                              'application/json']
     default_form = Layout(LoginForm,
                           Fieldset(all=True),
                           Submit('Login', disabled="form.$invalid"),
@@ -39,25 +42,29 @@ class SignUp(WebFormRouter):
     '''Display a signup form
     '''
     template = 'signup.html'
+    confirmation_template = 'registration/confirmation.html'
 
     def get(self, request):
         if request.cache.user.is_authenticated():
             raise HttpRedirect('/')
         return super().get(request)
 
-    @route('confirmation/<username>')
-    def new_confirmation(self, request):
-        username = request.urlargs['username']
-        backend = request.cache.auth_backend
-        backend.confirm_registration(request, username=username)
-        raise HttpRedirect(self.redirect_url(request))
-
     @route('<key>')
     def confirmation(self, request):
         key = request.urlargs['key']
-        backend = request.cache.auth_backend
-        backend.confirm_registration(request, key)
-        raise HttpRedirect(self.redirect_url(request))
+        url = 'authorizations/signup/%s' % key
+        api = request.app.api
+        response = api.post(url)
+        raise_http_error(response)
+        return self.html_response(request, '', self.confirmation_template)
+
+    @route('confirmation/<username>')
+    def new_confirmation(self, request):
+        username = request.urlargs['username']
+        api = request.app.api
+        response = api.post('authorizations/%s' % username)
+        raise_http_error(response)
+        return self.html_response(request, '', self.confirmation_template)
 
 
 class ForgotPassword(WebFormRouter):

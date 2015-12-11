@@ -90,7 +90,10 @@ def add_css(all):
         position='fixed',
         top=px(0),
         min_height='100%',
+        max_height='100%',
         width=sidebar.width,
+        overflow_y='auto',
+        overflow_x='hidden',
         z_index=810)
 
     # LEFT SIDEBAR OPEN
@@ -154,6 +157,15 @@ def add_css(all):
                         color=sidebar.link.color,
                         background=sidebar.link.background,
                         border_left_color=sidebar.link.color),
+                    css(' .fa',
+                        vertical_align='middle'),
+                    css(' span',
+                        vertical_align='top',
+                        white_space='nowrap',
+                        overflow='hidden',
+                        text_overflow='ellipsis',
+                        max_width='78%',
+                        display='inline-block'),
                     margin_right=px(1),
                     border_left='3px solid transparent',
                     font_size=px(15)),
@@ -169,6 +181,10 @@ def add_css(all):
                     css(' > a',
                         css(':hover',
                             color=sidebar.link.color),
+                        text_overflow='ellipsis',
+                        white_space='nowrap',
+                        overflow='hidden',
+                        max_width='92%',
                         color=sidebar.info.p.color)),
                 css('.active',
                     Transition('max-height',
@@ -206,24 +222,24 @@ def add_css(all):
                     margin_right=px(5)),
                 css(' > a',
                     css(' > .fa-angle-left',
+                        position='absolute',
+                        right=px(0),
                         width='auto',
                         height='auto',
                         padding=px(0),
                         margin_right=px(10),
-                        margin_top=px(3)),
+                        margin_top=px(5)),
                     css(' > .fa',
                         width=px(20)),
                     padding=spacing(8, 5, 8, 15),
                     display='block'),
                 position='relative',
                 margin=px(0),
-                padding=px(0),
-                width=sidebar.width),
+                padding=px(0)),
             list_style='none',
             margin=px(0),
             padding=px(0)),
-        margin_top=px(0),
-        padding_bottom=px(10))
+        margin_top=px(0))
 
     css('.treeview .active ~ .treeview-menu',
         Transition('max-height', trans.duration, 'ease-out'),
@@ -234,12 +250,57 @@ def add_css(all):
         overflow='hidden',
         max_height=px(0))
 
+    css('.sidebar .sidebar-menu .treeview-menu',
+        css('.active > li > a',
+            display='block!important'),
+        css(' > li > a',
+            display='none!important'))
+
     large = media(min_width=collapse_width)
 
     large.css('.sidebar .nav-panel',
               css(' .image > img',
                   height=navbar.height-px(20)),
               height=navbar.height)
+
+    # Add scrollbar styles
+    scrollbar(all)
+
+
+def scrollbar(all):
+    css = all.css
+    vars = all.variables
+
+    # Scrollbar variables container
+    sidebar = vars.sidebar
+    sidebar.scroll.width = px(8)
+    sidebar.scroll.height = px(8)
+    sidebar.scroll.thumb_bg = '#adadad'
+    sidebar.scroll.thumb_hover = '#a0a0a0'
+    sidebar.scroll.track_bg = '#444'
+
+    css('.sidebar::-webkit-scrollbar',
+        width=sidebar.scroll.width,
+        height=sidebar.scroll.height)
+
+    css('.sidebar::-webkit-scrollbar-button',
+        width=px(0),
+        height=px(0))
+
+    css('.sidebar::-webkit-scrollbar-thumb',
+        background=sidebar.scroll.thumb_bg,
+        border='0px none #ffffff',
+        border_radius=px(50))
+
+    css('.sidebar::-webkit-scrollbar-thumb:hover',
+        background=sidebar.scroll.thumb_hover)
+
+    css('.sidebar::-webkit-scrollbar-track',
+        background=sidebar.scroll.track_bg,
+        border_radius=px(50))
+
+    css('.sidebar::-webkit-scrollbar-corner',
+        background='transparent')
 
 
 def small():

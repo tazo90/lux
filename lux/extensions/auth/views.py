@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-from lux import route
+from lux import route, json_message
 from lux.extensions import rest
 from lux.extensions.rest.htmlviews import (SignUp as SignUpView,
                                            ComingSoon as ComingSoonView)
@@ -9,11 +9,12 @@ from lux.forms import Layout, Fieldset, Submit
 from lux.extensions.rest.forms import EmailForm
 from lux.extensions.rest.authviews import action
 
-from pulsar import MethodNotAllowed, Http404
+from pulsar import MethodNotAllowed, Http404, PermissionDenied
 from pulsar.apps.wsgi import Json
 
 from .forms import (permission_model, group_model, user_model,
-                    registration_model, CreateUserForm, ChangePasswordForm)
+                    registration_model, mailing_list_model,
+                    CreateUserForm, ChangePasswordForm)
 
 
 class PermissionCRUD(CRUD):
@@ -24,11 +25,23 @@ class GroupCRUD(CRUD):
     _model = group_model()
 
 
+class MailingListCRUD(CRUD):
+    _model = mailing_list_model()
+
+
 class RegistrationCRUD(RestRouter):
     get_user = None
     '''Function to retrieve user from url
     '''
     _model = registration_model()
+
+    def get(self, request):
+        '''Get a list of models
+        '''
+        self.check_model_permission(request, 'read')
+        # Columns the user doesn't have access to are dropped by
+        # serialise_model
+        return self.model(request).collection_response(request)
 
     def post(self, request):
         '''Create a new authentication key
@@ -55,8 +68,26 @@ class RegistrationCRUD(RestRouter):
             data = form.tojson()
         return Json(data).http_response(request)
 
+    @route(method=('get', 'options'))
+    def metadata(self, request):
+        '''Model metadata
+        '''
+        if request.method == 'OPTIONS':
+            request.app.fire('on_preflight', request)
+            return request.response
+
+        backend = request.cache.auth_backend
+        model = self.model(request)
+
+        if backend.has_permission(request, model.name, 'read'):
+            meta = model.meta(request)
+            return Json(meta).http_response(request)
+        raise PermissionDenied
+
 
 class UserCRUD(CRUD):
+    """CRUD views for users
+    """
     _model = user_model()
 
     def __init__(self, *args, **kw):
@@ -107,11 +138,11 @@ class Authorization(rest.Authorization):
                     entry = odm.mailinglist(email=email, topic=topic)
                     session.add(entry)
                     request.response.status_code = 201
-                    result = {'message': ('Email %s added to mailing list'
-                                          % email)}
+                    result = json_message('Email %s added to mailing list'
+                                          % email)
                 else:
-                    result = {'message': ('Email %s already in mailing list'
-                                          % email)}
+                    result = json_message('Email %s already in mailing list'
+                                          % email, level='warning')
         else:
             result = form.tojson()
         return Json(result).http_response(request)
@@ -126,7 +157,8 @@ class SignUp(SignUpView):
                           Submit('Sign up',
                                  disabled="form.$invalid"),
                           showLabels=False,
-                          directive='user-form')
+                          directive='user-form',
+                          resultHandler='signUp')
 
 
 class ComingSoon(ComingSoonView):
