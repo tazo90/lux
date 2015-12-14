@@ -64,8 +64,8 @@
             $httpBackend.flush();
 
             expect(model.arrayField instanceof Array).toBe(true);
-            expect(model.arrayObjectField[0]).toBe(5);
-            expect(model.arrayObjectField[1]).toBe(6);
+            expect(model.arrayObjectField[0].id).toBe(5);
+            expect(model.arrayObjectField[1].id).toBe(6);
         });
 
         it("formReady should set string value", function() {

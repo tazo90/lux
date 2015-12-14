@@ -106,14 +106,7 @@
                                 value = JSON.stringify(value, null, 4);
                             }
 
-                            if (isArray(value)) {
-                                model[key] = [];
-                                forEach(value, function(item) {
-                                    model[key].push(item.id || item);
-                                });
-                            } else {
-                                model[key] = value.id || value;
-                            }
+                            model[key] = value.id || value;
                         });
                     });
                 }

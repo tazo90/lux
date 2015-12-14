@@ -80,7 +80,7 @@ angular.module('lux.form.utils', ['lux.services'])
                             }
                         }
                     });
-
+                    // Resolve at the end of the data collection
                     defer.resolve(data);
 
                 }, function(data) {
