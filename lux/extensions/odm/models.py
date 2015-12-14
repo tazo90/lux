@@ -8,7 +8,6 @@ from sqlalchemy import Column, desc, String
 from sqlalchemy.orm import class_mapper, load_only
 from sqlalchemy.sql.expression import func, cast
 
-from pulsar import PermissionDenied
 from pulsar.utils.html import nicename
 
 from odm.utils import get_columns
@@ -53,8 +52,6 @@ class RestModel(rest.RestModel):
         :return:            query object
         """
         entities = self.columns_with_permission(request, 'read')
-        if not entities:
-            raise PermissionDenied
         db_model = self.db_model()
         db_columns = self.db_columns(self.column_fields(entities))
         query = session.query(db_model).options(load_only(*db_columns))
@@ -295,7 +292,8 @@ class RestModel(rest.RestModel):
         :param value:       comparison value, string or list/tuple
         :return:
         """
-        odm = request.app.odm()
+        app = request.app
+        odm = app.odm()
         field = getattr(odm[self.name], field)
         multiple = isinstance(value, (list, tuple))
 
@@ -319,9 +317,13 @@ class RestModel(rest.RestModel):
             elif op == 'search':
                 dialect_name = odm.binds[odm[self.name].__table__].dialect.name
                 if dialect_name == 'postgresql':
+                    ts_config = field.info.get(
+                        'text_search_config',
+                        app.config['DEFAULT_TEXT_SEARCH_CONFIG']
+                    )
                     query = query.filter(
-                        func.to_tsvector(cast(field, String)).op('@@')(
-                            func.plainto_tsquery(value))
+                        func.to_tsvector(ts_config, cast(field, String)).op(
+                            '@@')(func.plainto_tsquery(value))
                     )
                 else:
                     query = query.filter(field.match(value))

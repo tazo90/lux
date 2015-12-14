@@ -1,6 +1,6 @@
 //      Lux Library - v0.4.0
 
-//      Compiled 2015-12-11.
+//      Compiled 2015-12-14.
 //      Copyright (c) 2015 - Luca Sbardella
 //      Licensed BSD.
 //      For all details and documentation:
@@ -1000,14 +1000,7 @@ function(angular, root) {
                                 value = JSON.stringify(value, null, 4);
                             }
 
-                            if (isArray(value)) {
-                                model[key] = [];
-                                forEach(value, function(item) {
-                                    model[key].push(item.id || item);
-                                });
-                            } else {
-                                model[key] = value.id || value;
-                            }
+                            model[key] = value.id || value;
                         });
                     });
                 }
@@ -3524,7 +3517,7 @@ angular.module('lux.form.utils', ['lux.services'])
                             }
                         }
                     });
-
+                    // Resolve at the end of the data collection
                     defer.resolve(data);
 
                 }, function(data) {
@@ -4044,10 +4037,11 @@ angular.module('lux.form.utils', ['lux.services'])
                         return luxMessage.getDebugMode();
                     };
 
-                    scope.removeMessage = function (message) {
+                    scope.removeMessage = function ($event, message) {
+                        $event.preventDefault();
                         var msgs = scope.messages;
                         for (var i=0; i<msgs.length; ++i) {
-                            if (msgs[i].text === message.text) {
+                            if (msgs[i].$$hashKey === message.$$hashKey) {
                                 msgs.splice(i, 1);
                                 if (message.store) {
                                     //TODO: remove it from the store
@@ -4071,7 +4065,6 @@ angular.module('lux.form.utils', ['lux.services'])
                 }
             };
         }]);
-
 
 //  Grid Data Provider Factory
 //	===================
@@ -5514,7 +5507,7 @@ function gridDataProviderWebsocketFactory ($scope) {
                     else
                         loc = $location.path();
                     var rest = loc.substring(url.length),
-                        base = loc.substring(0, url.length),
+                        base = url.length < loc.length ? false : loc.substring(0, url.length),
                         folder = url.substring(url.length-1) === '/';
                     return base === url && (folder || (rest === '' || rest.substring(0, 1) === '/'));
                 };
@@ -6564,7 +6557,7 @@ angular.module("message/message.tpl.html", []).run(["$templateCache", function($
   $templateCache.put("message/message.tpl.html",
     "<div>\n" +
     "    <div class=\"alert alert-{{ message.type }}\" role=\"alert\" ng-repeat=\"message in messages\">\n" +
-    "        <a href=\"#\" class=\"close\" ng-click=\"removeMessage(message)\">&times;</a>\n" +
+    "        <a href=\"#\" class=\"close\" ng-click=\"removeMessage($event, message)\">&times;</a>\n" +
     "        <i ng-if=\"message.icon\" ng-class=\"message.icon\"></i>\n" +
     "        <span ng-bind-html=\"message.text\"></span>\n" +
     "    </div>\n" +
