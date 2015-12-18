@@ -73,8 +73,16 @@
             };
         })
         //
+        .constant('defaultErrorMessages', function () {
+            return {};
+        })
+        //
         .factory('formElements', ['defaultFormElements', function (defaultFormElements) {
             return defaultFormElements;
+        }])
+        //
+        .factory('formErrorMessages', ['defaultErrorMessages', function (defaultErrorMessages) {
+            return defaultErrorMessages;
         }])
         //
         .run(['$rootScope', '$lux', function (scope, $lux) {
@@ -99,8 +107,8 @@
 
         //
         // The formService is a reusable component for redering form fields
-        .service('standardForm', ['$log', '$http', '$document', '$templateCache', 'formDefaults', 'formElements',
-                                  function (log, $http, $document, $templateCache, formDefaults, formElements) {
+        .service('standardForm', ['$log', '$http', '$document', '$templateCache', 'formDefaults', 'formElements', 'formErrorMessages',
+                                  function (log, $http, $document, $templateCache, formDefaults, formElements, formErrorMessages) {
             //
             var baseAttributes = ['id', 'name', 'title', 'style'],
                 inputAttributes = extendArray([], baseAttributes, ['disabled', 'readonly', 'type', 'value', 'placeholder',
@@ -112,7 +120,8 @@
                                                                   'enctype', 'method', 'novalidate', 'target']),
                 validationAttributes = ['minlength', 'maxlength', 'min', 'max', 'required'],
                 ngAttributes = ['disabled', 'minlength', 'maxlength', 'required'],
-                elements = formElements();
+                elements = formElements(),
+                errorMessages = formErrorMessages();
 
             extend(this, {
                 name: 'default',
@@ -645,6 +654,9 @@
                 // Default error Message when the field is invalid
                 defaultErrorMesage: function (scope) {
                     var type = scope.field.type;
+                    if (errorMessages.hasOwnProperty(type)) {
+                        return errorMessages[type];
+                    }
                     return 'Not a valid ' + type;
                 },
                 //

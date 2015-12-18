@@ -193,3 +193,43 @@
             //
         }));
     });
+
+    describe("Test lux.form with custom error messages", function() {
+
+        // Angular module for custom error form messages
+        angular.module('lux.form.test.errorMessages', ['lux.form'])
+
+            .factory('formErrorMessages', ['defaultErrorMessages', function (defaultErrorMessages) {
+                return function () {
+                    var errorMessages = defaultErrorMessages();
+                    errorMessages.email = 'Email address is wrong';
+                    return errorMessages;
+                };
+            }])
+        //
+        lux.formErrorMessagesTests = {};
+
+        beforeEach(function () {
+            module('lux.form.test.errorMessages');
+        });
+
+        it("apply custom error message to the form field", inject(function($compile, $rootScope) {
+            lux.formErrorMessagesTests.error_msg = testFormUtils.createForm([{
+                type: 'email',
+                name: 'login',
+            }]);
+
+            var element = testFormUtils.digest($compile, $rootScope,
+                '<div><lux-form data-options="lux.formErrorMessagesTests.error_msg"></lux-form></div>');
+
+            var _form = angular.element(element).find('form');
+            var validators = _form.find('span');
+            scope = _form.scope();
+            scope.form.login.$setViewValue('value');
+            scope.form.$setSubmitted(true);
+            scope.$digest();
+
+            expect(angular.element(validators[0]).text()).toBe('Email address is wrong');
+            //
+        }));
+    });
